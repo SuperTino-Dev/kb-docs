@@ -1,0 +1,117 @@
+# IT Security: A Practical Guide for Modern Systems
+
+## Introduction
+
+In today’s digital world, security is not optional—it is a fundamental requirement. Every system, application, and network is a potential target, and even small misconfigurations can lead to serious breaches.
+
+IT security is about protecting systems, data, and users through a combination of technology, processes, and awareness.
+
+---
+
+## The Core Principles of Security
+
+All security strategies are built on three fundamental principles:
+
+### Confidentiality
+Ensure that only authorized users can access information.
+
+### Integrity
+Ensure that data is accurate and not altered without authorization.
+
+### Availability
+Ensure that systems and data are accessible when needed.
+
+---
+
+## Security Layers (Defense in Depth)
+
+Effective security is implemented in layers.
+
+### 1. Network Security
+
+Protects infrastructure and communication.
+
+- Firewalls (UFW, iptables)
+- Network segmentation
+- VPNs (WireGuard)
+- Web Application Firewalls (WAF)
+
+---
+
+### 2. System Security
+
+Protects servers and operating systems.
+
+- User access control
+- SSH hardening
+- Patch management
+- Service isolation
+
+---
+
+### 3. Application Security
+
+Focuses on securing software.
+
+- Input validation
+- Authentication and authorization
+- Secure coding practices
+- Dependency management
+
+---
+
+### 4. Data Security
+
+Protects sensitive information.
+
+- Encryption at rest
+- Encryption in transit (TLS)
+- Secure backups
+- Data masking
+
+---
+
+## Identity and Access Management (IAM)
+
+IAM controls who can access what.
+
+### Key concepts
+
+- Authentication (who you are)
+- Authorization (what you can do)
+- Roles and permissions
+
+### Best practices
+
+- Use least privilege  
+- Implement multi-factor authentication (MFA)  
+- Avoid shared accounts  
+- Rotate credentials regularly  
+
+---
+
+## Common Threats
+
+### Phishing
+Attackers trick users into revealing credentials.
+
+### Malware
+Malicious software that damages or steals data.
+
+### Ransomware
+Encrypts data and demands payment.
+
+### DDoS Attacks
+Overloads systems to make them unavailable.
+
+### Misconfiguration
+One of the most common and dangerous risks.
+
+---
+
+## Real-World Secure Architecture
+
+A typical secure architecture:
+
+```text
+Client → Cloudflare/WAF → Reverse Proxy (Nginx) → Application → Database
