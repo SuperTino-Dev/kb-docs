@@ -1,0 +1,859 @@
+# Oracle GoldenGate Network Connectivity and Pump Performance Test Plan
+
+<YouTube id="E_Q1tqRIKCU" title="Oracle GoldenGate Network Connectivity and Pump Performance Test Plan" />
+
+## Objective
+
+This document provides a structured troubleshooting methodology for Oracle GoldenGate Microservices environments running on Oracle Linux 9 or Red Hat Enterprise Linux 9.
+
+The purpose of this document is to identify possible causes of:
+
+- Slow Distribution Path performance
+- High Pump lag
+- Trail shipping delays
+- WAN instability
+- MTU fragmentation
+- TCP retransmissions
+- Receiver bottlenecks
+- Disk I/O issues
+- Apply-side slowness
+- VPN/WireGuard issues
+
+This version of the document includes additional validation steps and observations based on real troubleshooting results.
+
+---
+
+## Environment Information
+
+### Source Server
+
+```text
+Item                  Value
+--------------------- -------------------------
+Hostname              source-server
+IP Address            source-ip
+OS Version            Oracle Linux 9 / RHEL 9
+GoldenGate Version    19c / 21c / 23ai
+Architecture          Microservices
+Distribution Server   9003
+Receiver Server       9004
+```
+
+### Target Server
+
+```text
+Item                  Value
+--------------------- -------------------------
+Hostname              target-server
+IP Address            target-ip
+OS Version            Oracle Linux 9 / RHEL 9
+GoldenGate Version    19c / 21c / 23ai
+Architecture          Microservices
+```
+
+---
+
+## Section 1 — Basic Network Connectivity Validation
+
+### Purpose
+
+The following commands validate whether the source server can reach the target server over the network.
+
+This helps identify:
+
+- packet loss
+- routing issues
+- unstable WAN links
+- latency problems
+
+---
+
+### Validate Basic Connectivity
+
+#### Command Explanation
+
+The `ping` command sends ICMP packets to the target server and measures:
+
+- latency
+- packet loss
+- response consistency
+
+---
+
+#### Command
+
+```bash
+ping target-ip
+```
+
+---
+
+#### Expected Results
+
+```text
+Healthy Results
+----------------------------------------
+0% packet loss
+Stable latency
+Consistent response times
+```
+
+---
+
+#### Analysis
+
+Typical GG WAN latency guidance:
+
+```text
+Latency              Expectation
+-------------------  ------------------------
+0-10 ms              Excellent
+10-40 ms             Very Good
+40-100 ms            Good
+100-200 ms           Acceptable
+200+ ms              Potential Issues
+```
+
+WAN latency below 100 ms is generally considered acceptable for GoldenGate replication.
+
+---
+
+### Additional Validation
+
+#### Command Explanation
+
+The `time` utility measures total command execution time.
+
+This helps identify:
+
+- DNS delays
+- routing delays
+- network instability
+
+---
+
+#### Command
+
+```bash
+time ping -c 1 target-ip
+```
+
+---
+
+#### Expected Results
+
+```text
+Fast command execution
+Stable response time
+No DNS delays
+```
+
+---
+
+## Section 2 — Network Path Validation
+
+### Purpose
+
+The following commands validate:
+
+- network path stability
+- MTU consistency
+- routing behavior
+- intermediate network hops
+
+---
+
+### Validate Network Path
+
+#### Command Explanation
+
+The `tracepath` command displays the network path between source and target while also validating MTU discovery.
+
+---
+
+#### Command
+
+```bash
+tracepath target-ip
+```
+
+---
+
+#### Expected Results
+
+```text
+Resume: pmtu 1500
+```
+
+---
+
+#### Analysis
+
+This confirms:
+
+```text
+Path MTU = 1500
+```
+
+which is considered healthy.
+
+The multiple:
+
+```text
+no reply
+```
+
+entries are typically caused by routers that block ICMP responses and do NOT necessarily indicate a problem.
+
+---
+
+#### Important Observation
+
+The final message:
+
+```text
+Too many hops: pmtu 1500
+```
+
+does NOT indicate MTU failure.
+
+It simply means the destination stopped replying to tracepath probes.
+
+---
+
+### Additional Validation
+
+#### Command Explanation
+
+The following command validates whether packets of 1500 bytes can traverse the network WITHOUT fragmentation.
+
+This is critical for:
+
+- VPN replication
+- WireGuard
+- WAN replication
+- GoldenGate throughput
+
+---
+
+#### Command
+
+```bash
+ping -M do -s 1472 target-ip
+```
+
+---
+
+#### Expected Results
+
+```text
+1472 payload successful
+No fragmentation
+Stable latency
+```
+
+---
+
+#### Analysis
+
+This confirms:
+
+```text
+MTU 1500 is fully functional
+```
+
+No fragmentation issues detected.
+
+This significantly reduces the likelihood that the GG Pump problem is caused by:
+
+- MTU mismatch
+- VPN fragmentation
+- packet fragmentation
+
+---
+
+## Section 3 — Interface Validation
+
+### Purpose
+
+Validate network interface configuration and MTU settings.
+
+---
+
+### Validate Interface Information
+
+#### Command Explanation
+
+The `ip addr` command displays:
+
+- network interfaces
+- IP addresses
+- MTU values
+- interface state
+
+---
+
+#### Command
+
+```bash
+ip addr
+```
+
+---
+
+#### Expected Results
+
+```text
+Interface state = UP
+MTU = 1500
+Valid IP address assigned
+```
+
+---
+
+#### Analysis
+
+The interface configuration should appear healthy and consistent with the successful MTU validation tests.
+
+---
+
+## Section 4 — GoldenGate Microservices Validation
+
+### Purpose
+
+Validate that all GoldenGate Microservices components are listening properly.
+
+---
+
+### Validate Service Manager
+
+#### Command Explanation
+
+The `ss` command displays TCP listening ports.
+
+This validates whether GG services are actively accepting connections.
+
+---
+
+#### Command
+
+```bash
+ss -lntp | grep 9001
+```
+
+---
+
+#### Expected Results
+
+```text
+ServiceManager listening on port 9001
+```
+
+---
+
+#### Analysis
+
+Service Manager is healthy.
+
+---
+
+### Validate Admin Server
+
+#### Command
+
+```bash
+ss -lntp | grep 9002
+```
+
+---
+
+#### Expected Results
+
+```text
+adminsrvr listening on port 9002
+```
+
+---
+
+#### Analysis
+
+Admin Server is healthy.
+
+---
+
+### Validate Distribution Server
+
+#### Command
+
+```bash
+ss -lntp | grep 9003
+```
+
+---
+
+#### Expected Results
+
+```text
+distsrvr listening on port 9003
+```
+
+---
+
+#### Analysis
+
+Distribution Service is healthy.
+
+This service is responsible for remote trail shipping.
+
+---
+
+### Validate Receiver Server
+
+#### Command
+
+```bash
+ss -lntp | grep 9004
+```
+
+---
+
+#### Expected Results
+
+```text
+recvsrvr listening on port 9004
+```
+
+---
+
+#### Analysis
+
+Receiver Service is healthy.
+
+This service receives remote trail data.
+
+---
+
+### Validate Performance Metrics Server
+
+#### Command
+
+```bash
+ss -lntp | grep 9005
+```
+
+---
+
+#### Expected Results
+
+```text
+pmsrvr listening on port 9005
+```
+
+---
+
+#### Analysis
+
+Performance Metrics Server is healthy.
+
+---
+
+### Overall Microservices Assessment
+
+#### Expected State
+
+```text
+9001 UP
+9002 UP
+9003 UP
+9004 UP
+9005 UP
+```
+
+---
+
+#### Conclusion
+
+The GG Microservices stack appears healthy.
+
+The issue is likely NOT caused by:
+
+- stopped services
+- missing listeners
+- down Microservices components
+
+---
+
+## Section 5 — TCP Health Validation
+
+### Purpose
+
+Validate TCP socket stability and identify reconnect storms or TCP churn.
+
+---
+
+### Validate TCP Socket Summary
+
+#### Command Explanation
+
+The `ss -s` command displays a summary of TCP socket states.
+
+This helps identify:
+
+- reconnect storms
+- excessive TIME_WAIT sockets
+- TCP instability
+- socket exhaustion
+
+---
+
+#### Command
+
+```bash
+ss -s
+```
+
+---
+
+#### Expected Healthy Results
+
+```text
+Low TCP counts
+Low TIME_WAIT
+No orphaned sockets
+Stable ESTAB connections
+```
+
+---
+
+#### Analysis
+
+Healthy output generally indicates:
+
+- stable WAN connectivity
+- low TCP churn
+- stable replication sessions
+
+---
+
+#### Potential Warning Signs
+
+```text
+Very high TIME_WAIT
+Large ESTAB counts
+Many orphaned sockets
+```
+
+These may indicate:
+
+- reconnect storms
+- unstable WAN
+- VPN instability
+- firewall resets
+- application instability
+
+---
+
+## Section 6 — Additional TCP Session Validation
+
+### Purpose
+
+Validate active TCP sessions related to GoldenGate.
+
+---
+
+### Validate Active Sessions
+
+#### Command Explanation
+
+The following command displays active TCP sessions and queue sizes.
+
+This helps identify:
+
+- stalled send queues
+- blocked receivers
+- TCP congestion
+- receiver bottlenecks
+
+---
+
+#### Command
+
+```bash
+ss -tanp
+```
+
+---
+
+#### What To Look For
+
+##### Healthy
+
+```text
+ESTAB
+Send-Q = low
+Recv-Q = low
+```
+
+---
+
+##### Potential Problems
+
+```text
+SYN-SENT
+```
+
+Possible causes:
+
+- firewall
+- routing issue
+- target unreachable
+
+---
+
+##### Another Important Indicator
+
+```text
+High Send-Q
+```
+
+This may indicate:
+
+```text
+sender transmitting faster than receiver can consume
+```
+
+Possible causes:
+
+- slow receiver
+- WAN congestion
+- target disk bottleneck
+- apply-side slowness
+
+---
+
+## Section 7 — GoldenGate Validation
+
+### Purpose
+
+Validate actual Distribution Path behavior.
+
+---
+
+### Validate GG Lag
+
+#### Command Explanation
+
+The `lag` command displays replication lag.
+
+---
+
+#### Command
+
+```bash
+lag distribution_path_name
+```
+
+---
+
+#### Analysis
+
+High lag with healthy network conditions may indicate:
+
+- receiver bottleneck
+- target database slowness
+- large transactions
+- LOB processing
+- checkpoint delays
+
+---
+
+### Validate GG Statistics
+
+#### Command Explanation
+
+The `stats` command displays transaction and throughput statistics.
+
+---
+
+#### Command
+
+```bash
+stats distribution_path_name latest
+```
+
+---
+
+#### Analysis
+
+Useful for identifying:
+
+- low throughput
+- stalled processing
+- uneven transaction rates
+
+---
+
+### Validate GG Report
+
+#### Command Explanation
+
+The report file contains detailed runtime information.
+
+---
+
+#### Command
+
+```bash
+view report distribution_path_name
+```
+
+---
+
+#### What To Look For
+
+```text
+TCP/IP errors
+socket timeout
+retry attempts
+checkpoint delays
+slow acknowledgements
+large transaction warnings
+EOF waits
+```
+
+---
+
+## Section 8 — Trail File Validation
+
+### Purpose
+
+Validate whether trail files are accumulating.
+
+---
+
+### Validate Trail Growth
+
+#### Command Explanation
+
+The `ls` command displays trail file sizes and timestamps.
+
+---
+
+#### Command
+
+```bash
+ls -lh dirdat/*
+```
+
+---
+
+#### Analysis
+
+Rapid trail growth may indicate:
+
+```text
+sender faster than receiver
+```
+
+Possible causes:
+
+- WAN bottleneck
+- target disk issues
+- receiver delays
+- apply-side slowness
+
+---
+
+## Section 9 — System Resource Validation
+
+### Purpose
+
+Validate CPU and system performance.
+
+---
+
+### Validate CPU Usage
+
+#### Command Explanation
+
+The `top` command displays real-time CPU and memory usage.
+
+---
+
+#### Command
+
+```bash
+top
+```
+
+---
+
+#### Analysis
+
+Look for:
+
+- CPU saturation
+- excessive wait
+- memory pressure
+
+---
+
+### Validate System Statistics
+
+#### Command Explanation
+
+The `vmstat` command displays system performance metrics.
+
+---
+
+#### Command
+
+```bash
+vmstat 1
+```
+
+---
+
+#### Analysis
+
+Important metrics:
+
+```text
+wa = I/O wait
+```
+
+High values may indicate:
+
+- disk bottlenecks
+- storage latency
+
+---
+
+## Final Assessment
+
+### Healthy Indicators
+
+```text
+WAN latency healthy
+MTU healthy
+No fragmentation
+GG services healthy
+TCP stack healthy
+No reconnect storms
+No socket churn
+```
+
+---
+
+### Most Likely Remaining Areas To Investigate
+
+```text
+Distribution Path lag
+Receiver throughput
+Target disk speed
+Apply-side slowness
+Large transactions
+LOB replication
+Checkpoint advancement
+Target database performance
+```

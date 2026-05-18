@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import DocsSidebar, { type MenuNode } from "./DocsSidebar";
+import TableOfContents from "./TableOfContents";
 
 const KB_DIR = path.join(process.cwd(), "src/app/kb");
 
@@ -71,16 +72,20 @@ export default async function DocsLayout({
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-8 md:grid-cols-[260px_1fr]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-8 md:grid-cols-[260px_1fr] xl:grid-cols-[260px_minmax(0,1fr)_220px]">
         <aside className="border-r pr-6">
           <nav className="sticky top-8 text-sm">
             <DocsSidebar menu={sidebarMenu} />
           </nav>
         </aside>
 
-        <article className="prose prose-gray max-w-none">
+        <article className="prose prose-gray max-w-none" data-doc-article>
           {children}
         </article>
+
+        <aside className="hidden xl:block">
+          <TableOfContents />
+        </aside>
       </div>
     </main>
   );

@@ -1,0 +1,533 @@
+
+# Oracle Edition-Based Redefinition (EBR) Lab
+
+## What is EBR?
+
+Edition-Based Redefinition (EBR) is an Oracle Database feature that allows multiple versions of application code to exist simultaneously.
+
+This enables:
+
+- Online upgrades
+- Near zero downtime deployments
+- Rolling application changes
+- Safe PL/SQL migrations
+
+Very common in:
+
+- Oracle Fusion ERP
+- Oracle E-Business Suite Online Patching
+- SaaS applications
+
+---
+
+# Core Concept
+
+```text
+Same Data
+Different Code
+No Downtime
+```
+
+Tables are shared.
+
+PL/SQL logic is versioned.
+
+---
+
+# Architecture Overview
+
+```text
+                 +----------------+
+                 |   APP USERS    |
+                 +--------+-------+
+                          |
+                    CURRENT EDITION
+                          |
+         -----------------------------------
+         |                                 |
++--------v--------+             +----------v--------+
+| EDITION V1      |             | EDITION V2        |
+| pkg_orders old  |             | pkg_orders new    |
+| view old        |             | view new          |
++-----------------+             +-------------------+
+```
+
+---
+
+# Editionable Objects
+
+Supported:
+
+- PACKAGE
+- PACKAGE BODY
+- PROCEDURE
+- FUNCTION
+- VIEW
+- SYNONYM
+- TRIGGER
+- TYPE
+
+Not editionable:
+
+- TABLE
+- SEQUENCE
+
+Because of this Oracle created:
+
+- Editioning Views
+- Crossedition Triggers
+
+---
+
+# Requirements
+
+- Oracle Database 19c or newer
+- DBA privileges
+- Recommended:
+  - dedicated PDB
+
+---
+
+# Step 1 - Create EBR User
+
+```sql
+CREATE USER ebr IDENTIFIED BY ebr;
+
+GRANT CONNECT, RESOURCE TO ebr;
+
+GRANT CREATE SESSION TO ebr;
+GRANT CREATE TABLE TO ebr;
+GRANT CREATE VIEW TO ebr;
+GRANT CREATE PROCEDURE TO ebr;
+GRANT CREATE SEQUENCE TO ebr;
+GRANT CREATE SYNONYM TO ebr;
+
+GRANT CREATE ANY EDITION TO ebr;
+GRANT DROP ANY EDITION TO ebr;
+
+ALTER USER ebr ENABLE EDITIONS;
+```
+
+Verify:
+
+```sql
+SELECT username,
+       editions_enabled
+FROM dba_users
+WHERE username='EBR';
+```
+
+Expected:
+
+```text
+Y
+```
+
+---
+
+# Step 2 - Connect as EBR
+
+```sql
+CONN ebr/ebr
+```
+
+---
+
+# Step 3 - Create Base Table
+
+```sql
+CREATE TABLE customers (
+    customer_id NUMBER,
+    name        VARCHAR2(100)
+);
+```
+
+Insert data:
+
+```sql
+INSERT INTO customers VALUES (1,'JOHN');
+
+COMMIT;
+```
+
+---
+
+# Step 4 - Create Initial Package
+
+## Package Specification
+
+```sql
+CREATE OR REPLACE PACKAGE pkg_customers AS
+
+    PROCEDURE show_customer(p_id NUMBER);
+
+END;
+/
+```
+
+## Package Body
+
+```sql
+CREATE OR REPLACE PACKAGE BODY pkg_customers AS
+
+PROCEDURE show_customer(p_id NUMBER) IS
+
+    v_name VARCHAR2(100);
+
+BEGIN
+
+    SELECT name
+    INTO v_name
+    FROM customers
+    WHERE customer_id = p_id;
+
+    DBMS_OUTPUT.PUT_LINE('V1 CUSTOMER='||v_name);
+
+END;
+
+END;
+/
+```
+
+---
+
+# Step 5 - Test Initial Version
+
+```sql
+SET SERVEROUTPUT ON
+
+EXEC pkg_customers.show_customer(1);
+```
+
+Expected output:
+
+```text
+V1 CUSTOMER=JOHN
+```
+
+---
+
+# Step 6 - View Existing Editions
+
+```sql
+SELECT *
+FROM dba_editions;
+```
+
+---
+
+# Step 7 - Create New Edition
+
+```sql
+CREATE EDITION version2 AS CHILD OF ora$base;
+```
+
+---
+
+# Step 8 - Switch Session to New Edition
+
+```sql
+ALTER SESSION SET EDITION = version2;
+```
+
+Verify:
+
+```sql
+SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
+FROM dual;
+```
+
+Expected:
+
+```text
+VERSION2
+```
+
+---
+
+# Step 9 - Modify Package ONLY in Version2
+
+```sql
+CREATE OR REPLACE PACKAGE BODY pkg_customers AS
+
+PROCEDURE show_customer(p_id NUMBER) IS
+
+    v_name VARCHAR2(100);
+
+BEGIN
+
+    SELECT name
+    INTO v_name
+    FROM customers
+    WHERE customer_id = p_id;
+
+    DBMS_OUTPUT.PUT_LINE('V2 CUSTOMER='||v_name);
+
+END;
+
+END;
+/
+```
+
+---
+
+# Step 10 - Validate Isolation
+
+## Session 1
+
+```sql
+ALTER SESSION SET EDITION = ora$base;
+
+EXEC pkg_customers.show_customer(1);
+```
+
+Expected:
+
+```text
+V1 CUSTOMER=JOHN
+```
+
+---
+
+## Session 2
+
+```sql
+ALTER SESSION SET EDITION = version2;
+
+EXEC pkg_customers.show_customer(1);
+```
+
+Expected:
+
+```text
+V2 CUSTOMER=JOHN
+```
+
+---
+
+# Important Observation
+
+Both editions use the same physical table:
+
+```sql
+customers
+```
+
+But execute different code versions.
+
+---
+
+# Editioning Views
+
+## Why Editioning Views Exist
+
+Tables are not editionable.
+
+Oracle uses Editioning Views to abstract table structure changes.
+
+---
+
+# Step 11 - Create New Table Version
+
+```sql
+CREATE TABLE customers2 (
+
+    customer_id NUMBER,
+    name        VARCHAR2(100),
+    email       VARCHAR2(100)
+
+);
+```
+
+Insert sample data:
+
+```sql
+INSERT INTO customers2
+VALUES (1,'JOHN','john@test.com');
+
+COMMIT;
+```
+
+---
+
+# Step 12 - Create Editioning View
+
+```sql
+CREATE EDITIONING VIEW ev_customers AS
+
+SELECT
+    customer_id,
+    name
+FROM customers2;
+```
+
+---
+
+# Benefit
+
+Old application:
+
+```text
+Uses:
+- customer_id
+- name
+```
+
+New application:
+
+```text
+Uses:
+- customer_id
+- name
+- email
+```
+
+Without breaking compatibility.
+
+---
+
+# Crossedition Triggers
+
+Used during online migrations.
+
+Purpose:
+
+- synchronize old column model
+- synchronize new column model
+
+Very common in:
+
+- Oracle Fusion
+- Oracle EBS Online Patching
+
+---
+
+# Useful Queries
+
+## Current Edition
+
+```sql
+SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
+FROM dual;
+```
+
+---
+
+## Editioned Objects
+
+```sql
+SELECT
+    object_name,
+    object_type,
+    edition_name
+FROM user_objects_ae;
+```
+
+---
+
+## All Editions
+
+```sql
+SELECT *
+FROM dba_editions;
+```
+
+---
+
+# Drop Edition
+
+```sql
+DROP EDITION version2 CASCADE;
+```
+
+---
+
+# Real World Oracle SaaS Usage
+
+Oracle ERP Cloud commonly uses editions like:
+
+```text
+ORA$BASE
+PATCH_2026_01
+PATCH_2026_02
+PATCH_2026_03
+```
+
+Combined with:
+
+- Editioning Views
+- Crossedition Triggers
+- Invisible Indexes
+- Seed Sets
+
+This is why Fusion tables often contain:
+
+```text
+ORA_SEED_SET1
+ORA_SEED_SET2
+```
+
+---
+
+# GoldenGate + EBR Considerations
+
+Important for replication environments.
+
+GoldenGate replicates:
+
+- physical tables
+
+GoldenGate does NOT automatically understand:
+
+- edition context
+- editioning logic
+
+Common issues:
+
+- DDL out of order
+- wrong edition execution
+- editioning view mismatches
+- invalid synonyms
+- ORA-38802
+- ORA-38818
+- ORA-42314
+
+---
+
+# Recommended Next Labs
+
+## Beginner
+
+- multiple editions
+- package isolation
+- edition switching
+
+## Intermediate
+
+- editioning views
+- crossedition triggers
+- online column migration
+
+## Advanced
+
+- GoldenGate + EBR
+- invisible indexes
+- online patching simulation
+- ERP Cloud style deployment
+
+---
+
+# Mental Model
+
+```text
+Tables = Shared
+Code   = Versioned
+```
+
+---
+
+# Oracle Documentation
+
+- https://docs.oracle.com/en/database/oracle/oracle-database/23/adfns/editions.html
+- https://docs.oracle.com/en/database/oracle/oracle-database/23/adfns/edition-based-redefinition.html
+- https://docs.oracle.com/cd/E26401_01/doc.122/e22954/T202991T531065.htm

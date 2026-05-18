@@ -23,3 +23,51 @@ body {
   border-radius: 0.75rem;
   color: #27272a;
 }
+
+.prose :where(h2, h3) {
+  scroll-margin-top: 6rem;
+}
+
+.doc-toc {
+  position: sticky;
+  top: 2rem;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  border-left: 1px solid #e5e7eb;
+  padding-left: 1rem;
+  font-size: 0.875rem;
+}
+
+.doc-toc__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+
+.doc-toc__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.doc-toc__item {
+  margin-top: 0.5rem;
+}
+
+.doc-toc__item--nested {
+  padding-left: 0.875rem;
+}
+
+.doc-toc__link {
+  display: block;
+  line-height: 1.35;
+  color: #52525b;
+  text-decoration: none;
+}
+
+.doc-toc__link:hover {
+  color: #18181b;
+}

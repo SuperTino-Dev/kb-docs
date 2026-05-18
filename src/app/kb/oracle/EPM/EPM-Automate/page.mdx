@@ -1,0 +1,35 @@
+# 🔹 EPM Automate – Complete Guide (Usage, Capabilities, and Common Commands)
+
+---
+
+## 🧭 What is EPM Automate?
+
+**EPM Automate** is a command-line utility used to automate tasks in Oracle EPM Cloud without using the web interface.
+
+It is mainly used for:
+- Backups (Snapshots)
+- Data loads
+- Job execution
+- Environment migration
+- Scheduled integrations
+
+---
+
+## ⚙️ Prerequisites
+
+- EPM Automate client installed
+- User with **Service Administrator** role
+- Environment URL  
+  Example: `https://<instance>-<domain>.epm.oraclecloud.com`
+- Encrypted password file (recommended)
+
+---
+
+## 🔐 Login / Logout
+
+### Standard login
+```bash
+epmautomate login USER PASSWORD URL
+
+epmautomate encrypt PASSWORD password.epw
+epmautomate login USER password.epw URL
