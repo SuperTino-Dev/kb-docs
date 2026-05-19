@@ -1,0 +1,35 @@
+name: Test Self Hosted Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, debian13]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Show Server Info
+        run: |
+          echo "===== HOSTNAME ====="
+          hostname
+
+          echo "===== USER ====="
+          whoami
+
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
+
+          echo "===== OS INFO ====="
+          uname -a
+
+      - name: Test NodeJS
+        run: |
+          node -v || true
+          npm -v || true
+
+      - name: List Files
+        run: |
+          ls -lah
