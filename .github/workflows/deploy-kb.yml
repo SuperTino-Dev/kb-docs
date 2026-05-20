@@ -1,0 +1,44 @@
+name: Deploy KB Site
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, debian13, kb]
+
+    steps:
+      - name: Checkout Repository from GitHub
+        uses: actions/checkout@v4
+
+      - name: Show Runner Info
+        run: |
+          echo "===== RUNNER INFO ====="
+          hostname
+          whoami
+          pwd
+
+          echo "===== REPO FILES ON RUNNER ====="
+          ls -lah
+
+      - name: Deploy Files to Node Server using rsync
+        run: |
+          rsync -avz --delete \
+            --exclude node_modules \
+            --exclude .next \
+            --exclude .git \
+            ./ nextjs@vm-deb13node01:/home/nextjs/apps/kb-site/
+
+      - name: Build and Restart Next.js on Node Server
+        run: |
+          ssh nextjs@vm-deb13node01 '
+            cd /home/nextjs/apps/kb-site &&
+            npm install &&
+            npm run build &&
+            sudo systemctl restart kb-nextjs &&
+            sudo systemctl status kb-nextjs --no-pager
+          '
