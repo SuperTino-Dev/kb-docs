@@ -1,5 +1,234 @@
-# TU24x7 Docs
-Bienvenido a la documentación.
-## Secciones
-- Database
-- GoldenGate
+# Oracle Database Knowledge Base
+
+Enterprise Oracle Database knowledge base focused on architecture, administration, performance, security, automation, troubleshooting, and real-world operational practices.
+
+This section is designed for DBAs, architects, developers, infrastructure engineers, and Oracle Cloud administrators working with modern Oracle Database environments across on-premises, hybrid, and cloud deployments.
+
+---
+
+## What You Will Find Here
+
+### Oracle Database Administration
+
+Step-by-step operational guidance for managing Oracle Database environments.
+
+Topics include:
+
+- Oracle Database installation and upgrades
+- Oracle Linux integration
+- Patching and RU/RUR strategies
+- Multitenant architecture (CDB/PDB)
+- Listener and network configuration
+- Backup and recovery strategies
+- RMAN best practices
+- Data Pump operations
+- Tablespace and storage management
+- User and privilege administration
+- Scheduler jobs and automation
+- Database startup and systemd integration
+- Oracle Database on virtualized environments
+
+---
+
+### Performance Tuning and Optimization
+
+Practical tuning guidance based on real production scenarios.
+
+Topics include:
+
+- AWR and ASH analysis
+- SQL performance troubleshooting
+- Execution plan interpretation
+- Statistics gathering strategies
+- Parallel execution tuning
+- PGA and SGA optimization
+- Redo and undo tuning
+- Index design and invisible indexes
+- Partitioning strategies
+- Wait event analysis
+- High CPU and I/O diagnostics
+- SQL Plan Management
+- Automatic indexing considerations
+
+---
+
+### Oracle GoldenGate Integration
+
+Deep technical content focused on Oracle GoldenGate and replication architectures.
+
+Topics include:
+
+- Oracle GoldenGate 23ai
+- Extract and Replicat configuration
+- Pump tuning and network optimization
+- DDL replication strategies
+- Edition-Based Redefinition (EBR)
+- Oracle ERP/Fusion replication considerations
+- Conflict detection and resolution
+- Replication filtering techniques
+- Monitoring and troubleshooting
+- OCI GoldenGate deployments
+- Data reconciliation methodologies
+- Network latency and throughput analysis
+
+---
+
+### Oracle ERP Cloud and Fusion Database Topics
+
+Advanced Oracle Fusion and ERP Cloud operational guidance.
+
+Topics include:
+
+- Editioning views
+- ORA_SEED_SET1 and ORA_SEED_SET2 behavior
+- Invisible index behavior during patching
+- Oracle Fusion schema considerations
+- VPD policy analysis
+- ERP Cloud reporting optimization
+- Data warehouse integration strategies
+- Replication design for Fusion environments
+- Metadata extraction troubleshooting
+
+---
+
+### Security and Hardening
+
+Database and infrastructure security guidance focused on enterprise deployments.
+
+Topics include:
+
+- Oracle Database hardening
+- Listener security
+- TLS and wallet configuration
+- Database auditing
+- Privilege minimization
+- Secure SSH practices
+- Firewall integration
+- Reverse proxy architectures
+- Cloudflare and NGINX integration
+- SELinux troubleshooting
+- Secure automation workflows
+- Secure backup handling
+
+---
+
+### Oracle Cloud and Hybrid Architectures
+
+Hybrid and cloud-focused deployment strategies.
+
+Topics include:
+
+- Oracle Cloud Infrastructure (OCI)
+- Hybrid Oracle architectures
+- Oracle Database on Proxmox
+- NFS and shared storage integration
+- VM sizing strategies
+- Disaster recovery planning
+- High availability architectures
+- Network segmentation
+- VPN and WireGuard integration
+- OCI GoldenGate
+- Cloud monitoring and automation
+
+---
+
+### Automation and DevOps
+
+Operational automation and infrastructure-as-code practices.
+
+Topics include:
+
+- Bash scripting
+- Ansible automation
+- GitHub Actions integration
+- Self-hosted runners
+- Automated deployments
+- CI/CD for database tooling
+- Health checks and monitoring scripts
+- Dynamic DNS automation
+- Log rotation and maintenance
+- Database operational runbooks
+
+---
+
+## Featured Technologies
+
+This knowledge base currently focuses on:
+
+- Oracle Database 19c
+- Oracle Database 23ai
+- Oracle GoldenGate 23ai
+- Oracle Linux 9
+- NGINX
+- Cloudflare
+- Next.js
+- Proxmox VE
+- GitHub Actions
+- Linux automation tooling
+- Oracle ERP Cloud
+- Oracle EPM
+
+---
+
+## Documentation Style
+
+The documentation is designed to be:
+
+- Practical and implementation-focused
+- Real-world production oriented
+- Copy-paste friendly
+- Structured for operational use
+- Optimized for engineers and administrators
+- Suitable for internal runbooks and enterprise KB systems
+- Easy to migrate into MDX or technical portals
+
+Most guides include:
+
+- Architecture explanations
+- Operational context
+- Step-by-step procedures
+- Validation commands
+- Troubleshooting sections
+- Security considerations
+- Rollback guidance
+
+---
+
+## Suggested Main Categories
+
+```text
+Oracle
+├── Database
+│   ├── Installation
+│   ├── Administration
+│   ├── Performance Tuning
+│   ├── RMAN
+│   ├── Multitenant
+│   ├── Security
+│   ├── Automation
+│   ├── Monitoring
+│   ├── Troubleshooting
+│   └── Oracle Linux Integration
+│
+├── GoldenGate
+│   ├── Installation
+│   ├── Performance
+│   ├── Replication Design
+│   ├── EBR
+│   ├── ERP Cloud
+│   ├── OCI GoldenGate
+│   └── Troubleshooting
+│
+├── ERP Cloud
+│   ├── Reporting
+│   ├── Fusion Database
+│   ├── VPD
+│   ├── EBR
+│   └── Data Integration
+│
+└── OCI
+    ├── Networking
+    ├── Compute
+    ├── Storage
+    ├── GoldenGate
+    └── Security
