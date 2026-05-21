@@ -1,0 +1,400 @@
+---
+title: Oracle ERP Cloud ORA_SEED_SET1 and ORA_SEED_SET2 Explained
+description: Understanding ORA_SEED_SET1 and ORA_SEED_SET2 in Oracle ERP Cloud, Fusion Applications, EBR, and Oracle GoldenGate replication environments.
+---
+
+# Oracle ERP Cloud ORA_SEED_SET1 and ORA_SEED_SET2 Explained
+
+## Overview
+
+Oracle ERP Cloud and Fusion Applications use a special architecture internally called Edition-Based Redefinition (EBR).
+
+This architecture allows Oracle to apply:
+
+- Patches
+- Upgrades
+- Application changes
+- Metadata updates
+
+with minimal downtime while maintaining application availability.
+
+One of the most visible indicators of this architecture is the presence of columns like:
+
+- `ORA_SEED_SET1`
+- `ORA_SEED_SET2`
+
+These columns appear in many Oracle Fusion / ERP Cloud tables, especially:
+
+- FND tables
+- Setup tables
+- Metadata tables
+- Value set tables
+- Lookup tables
+- Seeded configuration tables
+
+Examples:
+
+- `FND_VS_VALUE_SETS`
+- `FND_SETID_SETS`
+- Various Fusion application metadata tables
+
+Oracle documentation explicitly describes these columns as related to the Edition-Based Redefinition (EBR) context of the row.
+
+---
+
+## What Is EBR?
+
+Edition-Based Redefinition (EBR) is an Oracle Database feature designed to support:
+
+- Online application upgrades
+- Near-zero downtime patching
+- Multiple application versions simultaneously
+- Safe deployment rollouts
+- Online metadata transitions
+
+With EBR, Oracle can maintain:
+
+- An old application edition
+- A new application edition
+
+at the same time during upgrades.
+
+---
+
+## Simplified Concept
+
+```text
++----------------------------------+----------------------------------+
+| Traditional Database             | EBR Architecture                 |
++----------------------------------+----------------------------------+
+| Single object version            | Multiple object versions         |
+| Downtime required for upgrades   | Online upgrades possible         |
+| Direct replacement deployments   | Controlled edition transitions   |
+| Higher deployment risk           | Safer rollout strategy           |
+| Application outage during        | Minimal or near-zero downtime    |
+| upgrades                         |                                  |
+| Hard rollback process            | Safer rollback capability        |
++----------------------------------+----------------------------------+
+```
+
+---
+
+### Traditional Database Approach
+
+In a traditional database deployment model:
+
+- Only one active version of the application exists
+- Upgrades usually require downtime
+- Existing objects are directly modified or replaced
+- Rollbacks can be difficult and risky
+
+---
+
+### EBR Architecture Approach
+
+With Oracle Edition-Based Redefinition (EBR):
+
+- Multiple application versions can coexist
+- Oracle can patch applications online
+- New editions are introduced gradually
+- Rollbacks are safer and more controlled
+- Existing sessions can continue running during upgrades
+
+This architecture is one of the key technologies behind Oracle Fusion Applications and ERP Cloud online patching capabilities.
+---
+
+## Why ORA_SEED_SET1 and ORA_SEED_SET2 Exist
+
+Oracle Fusion Applications store seeded metadata and configuration data in a way that supports EBR.
+
+The columns:
+
+- `ORA_SEED_SET1`
+- `ORA_SEED_SET2`
+
+identify which EBR seed context the row belongs to.
+
+Typical values:
+
+| Value | Meaning |
+|---|---|
+| `Y` | Row belongs to that seed set |
+| `N` | Row does not belong to that seed set |
+
+These flags help Oracle internally manage:
+
+- Multiple metadata versions
+- Online patching
+- Transitional application states
+- Safe metadata rollovers
+
+---
+
+## Why Oracle Uses Multiple Seed Sets
+
+Oracle internally uses multiple seed contexts to support:
+
+- Online patching
+- Rolling upgrades
+- Metadata synchronization
+- Edition transitions
+- Safe deployment operations
+
+This allows Oracle to maintain:
+
+- Current active metadata
+- Future metadata being deployed
+- Transitional metadata during patching
+
+without interrupting active application sessions.
+
+---
+
+## Important Observation
+
+Many Fusion tables contain unique indexes that include these seed columns.
+
+Example:
+
+```sql
+FND_VS_VALUE_SETS_U1
+(
+  VALUE_SET_ID,
+  ENTERPRISE_ID,
+  SANDBOX_ID,
+  ORA_SEED_SET1
+)
+
+FND_VS_VALUE_SETS_U11
+(
+  VALUE_SET_ID,
+  ENTERPRISE_ID,
+  SANDBOX_ID,
+  ORA_SEED_SET2
+)
+```
+
+This becomes extremely important during:
+
+- Oracle GoldenGate replication
+- Data warehouse extraction
+- Reporting
+- Data reconciliation
+- Custom integrations
+
+---
+
+## Why This Matters for Oracle GoldenGate
+
+In Oracle ERP Cloud replication projects, these columns can cause:
+
+- Duplicate rows
+- Unique key conflicts
+- Incorrect reconciliation counts
+- Metadata duplication
+- Reporting inconsistencies
+
+if they are not properly understood.
+
+Example:
+
+Two rows may appear logically identical except for:
+
+```sql
+ORA_SEED_SET1 = 'Y'
+ORA_SEED_SET2 = 'N'
+```
+
+versus:
+
+```sql
+ORA_SEED_SET1 = 'N'
+ORA_SEED_SET2 = 'Y'
+```
+
+From the application perspective, Oracle may expose only one logical version.
+
+However:
+
+- GoldenGate
+- Reporting tools
+- Custom ETL processes
+- Direct SQL queries
+
+may see both rows.
+
+---
+
+## Common GoldenGate Strategy
+
+Some Oracle ERP Cloud replication implementations filter rows using conditions like:
+
+```sql
+WHERE ORA_SEED_SET1 = 'Y'
+```
+
+or:
+
+```sql
+FILTER (ORA_SEED_SET1 = 'Y')
+```
+
+However, the correct strategy depends on:
+
+- Oracle application version
+- Patch level
+- Table type
+- EBR state
+- Oracle guidance
+- Replication design
+
+Blind filtering can be dangerous.
+
+---
+
+## Core EBR Components
+
+### Editions
+
+Logical versions of application objects.
+
+Examples:
+
+- `ORA$BASE`
+- `RELEASE_V1`
+- `RELEASE_V2`
+
+---
+
+### Editioning Views
+
+Oracle uses editioning views to expose different logical structures while the base table remains unchanged.
+
+Important:
+
+- Tables themselves are NOT editionable
+- Views ARE editionable
+
+This is a core part of EBR architecture.
+
+---
+
+### Cross-Edition Triggers
+
+Cross-edition triggers synchronize data between old and new editions during upgrades.
+
+These triggers help Oracle support online patching while users remain connected.
+
+---
+
+## Why ERP Cloud Uses EBR Heavily
+
+Oracle Fusion Applications are continuously patched environments.
+
+Oracle needs the ability to:
+
+- Deploy updates online
+- Upgrade metadata safely
+- Maintain high availability
+- Transition application logic gradually
+
+EBR is one of the core technologies enabling this architecture.
+
+---
+
+## Practical DBA Considerations
+
+### Reporting Queries
+
+When querying Fusion tables directly:
+
+- Be aware of duplicated logical rows
+- Understand EBR-related columns
+- Validate uniqueness carefully
+
+---
+
+### GoldenGate
+
+Validate:
+
+- Key columns
+- Supplemental logging
+- Duplicate behavior
+- Filtering strategy
+- Replication consistency
+
+---
+
+### Data Warehouse Loads
+
+Avoid assuming:
+
+```sql
+PRIMARY KEY = BUSINESS UNIQUENESS
+```
+
+because EBR seed columns may participate in uniqueness.
+
+---
+
+## Example Query
+
+```sql
+SELECT
+    VALUE_SET_ID,
+    VALUE_SET_CODE,
+    ORA_SEED_SET1,
+    ORA_SEED_SET2
+FROM FND_VS_VALUE_SETS
+WHERE VALUE_SET_CODE = 'XX_SAMPLE';
+```
+
+---
+
+## Important Warning
+
+These columns are Oracle internal implementation details.
+
+Do NOT:
+
+- Update them manually
+- Delete rows based only on these flags
+- Assume behavior is identical across versions
+
+Oracle may change internal implementation details between releases.
+
+---
+
+## Recommended Best Practices
+
+For integrations and replication:
+
+- Understand the table purpose first
+- Validate uniqueness carefully
+- Test upgrades and patching scenarios
+- Monitor duplicate behavior
+- Validate GoldenGate mappings explicitly
+- Review Oracle support guidance for Fusion environments
+
+---
+
+## Related Topics
+
+- Oracle Edition-Based Redefinition (EBR)
+- Oracle Fusion Applications Architecture
+- Oracle GoldenGate and EBR
+- Editioning Views
+- Cross-Edition Triggers
+- Fusion Seed Data
+- ERP Cloud Metadata Tables
+- Online Patching Architecture
+
+---
+
+## References
+
+- Oracle Fusion Applications Documentation
+- Oracle Database Edition-Based Redefinition Documentation
+- Oracle GoldenGate Documentation
+- Oracle Fusion Applications Architecture Guides
