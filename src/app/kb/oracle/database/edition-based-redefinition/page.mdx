@@ -1,0 +1,365 @@
+# Oracle Edition-Based Redefinition (EBR)
+
+Oracle Edition-Based Redefinition (EBR) is a database feature that allows multiple versions of application code to exist simultaneously inside the same database.
+
+<YouTube id="_mS6n_nFLaM" title="How to Upgrade Oracle with ZERO Downtime (EBR Explained)" />
+
+EBR was designed to support:
+
+- Online patching
+- Near-zero downtime deployments
+- Safe application upgrades
+- Rolling PL/SQL changes
+- SaaS-style release management
+
+It is one of the most important technologies used internally by:
+
+- Oracle Fusion Applications
+- Oracle ERP Cloud
+- Oracle E-Business Suite Online Patching
+
+---
+
+# Why EBR Exists
+
+Traditional database deployments usually require downtime because application code must be replaced directly.
+
+With EBR, Oracle allows old and new versions of code to coexist during the deployment process.
+
+This means:
+
+```text
+
++--------------------------------------------------------------+
+| Traditional Deployment                                       |
++--------------------------------------------------------------+
+| Replace old code                                             |
+| Deploy new code                                              |
+| Application downtime required                                |
+| Risk during deployment                                       |
++--------------------------------------------------------------+
+```
+
+Versus:
+
+```text
+
++--------------------------------------------------------------+
+| EBR Deployment Model                                         |
++--------------------------------------------------------------+
+| Old and new code coexist                                     |
+| Sessions can use different editions                          |
+| Online patching becomes possible                             |
+| Reduced downtime                                             |
++--------------------------------------------------------------+
+```
+
+---
+
+# Core EBR Concept
+
+EBR separates:
+
+```text
+
++--------------------------------------------------------------+
+| Shared Components                                            |
++--------------------------------------------------------------+
+| Tables                                                       |
+| Data                                                         |
+| Indexes                                                      |
+| Sequences                                                    |
++--------------------------------------------------------------+
+```
+
+From:
+
+```text
+
++--------------------------------------------------------------+
+| Versioned Components                                         |
++--------------------------------------------------------------+
+| Packages                                                     |
+| Package Bodies                                               |
+| Procedures                                                   |
+| Functions                                                    |
+| Views                                                        |
+| Synonyms                                                     |
+| Triggers                                                     |
++--------------------------------------------------------------+
+```
+
+This allows Oracle to keep the same data while changing the application logic safely.
+
+---
+
+# Simple Architecture Overview
+
+```text
+                 +----------------+
+                 |   APP USERS    |
+                 +--------+-------+
+                          |
+                    CURRENT EDITION
+                          |
+         -----------------------------------
+         |                                 |
++--------v--------+             +----------v--------+
+| EDITION V1      |             | EDITION V2        |
+| pkg_orders old  |             | pkg_orders new    |
+| view old        |             | view new          |
++-----------------+             +-------------------+
+```
+
+Both editions may use the same physical tables while executing different versions of application code.
+
+---
+
+# What is an Edition?
+
+An edition is a logical namespace that stores a version of editioned objects.
+
+Examples:
+
+```text
+
+ORA$BASE
+PATCH_2026_01
+PATCH_2026_02
+VERSION2
+```
+
+A session connected to one edition may execute different code than another session connected to a different edition.
+
+---
+
+# Important EBR Components
+
+## Editions
+
+Logical containers for application object versions.
+
+## Editioned Objects
+
+Objects that can have multiple versions.
+
+```text
+
+PACKAGE
+PACKAGE BODY
+PROCEDURE
+FUNCTION
+VIEW
+SYNONYM
+TRIGGER
+TYPE
+```
+
+## Editioning Views
+
+Special views used to abstract table structure changes.
+
+Tables themselves are not editioned.
+
+Oracle uses editioning views as a compatibility layer between applications and physical tables.
+
+## Crossedition Triggers
+
+Triggers used during online data migrations.
+
+These synchronize old and new data structures during patching.
+
+---
+
+# Why Tables Are Different
+
+Tables are shared across all editions.
+
+This is one of the most important EBR concepts.
+
+```text
+
++--------------------------------------------------------------+
+| Tables are NOT editioned                                     |
++--------------------------------------------------------------+
+| One physical table                                           |
+| Shared by all editions                                       |
+| Data remains centralized                                     |
++--------------------------------------------------------------+
+```
+
+Because tables are shared, Oracle uses:
+
+- Editioning Views
+- Crossedition Triggers
+
+to safely evolve application structures during upgrades.
+
+---
+
+# EBR in Oracle Fusion Applications
+
+Oracle Fusion Applications heavily rely on EBR.
+
+Common indicators include:
+
+```text
+
++--------------------------------------------------------------+
+| Fusion EBR Indicators                                        |
++--------------------------------------------------------------+
+| ORA_SEED_SET1                                                |
+| ORA_SEED_SET2                                                |
+| Editioning Views                                             |
+| Online patching                                              |
+| Multiple package versions                                    |
+| FUSION_RUNTIME schemas                                       |
++--------------------------------------------------------------+
+```
+
+Fusion patching workflows commonly create new editions during patch deployment.
+
+---
+
+# Common DBA Views Used with EBR
+
+## DBA_OBJECTS_AE
+
+Shows objects across all editions.
+
+## DBA_EDITIONS
+
+Shows existing editions.
+
+## DBA_EDITIONING_VIEWS
+
+Shows editioning views.
+
+## DBA_USERS
+
+Shows edition-enabled schemas.
+
+---
+
+# Common EBR Use Cases
+
+## Online Patching
+
+Deploy application changes while users remain connected.
+
+## SaaS Deployments
+
+Release updates with minimal downtime.
+
+## Oracle Fusion ERP
+
+Support continuous cloud patching.
+
+## Rolling Application Upgrades
+
+Migrate application logic safely between releases.
+
+---
+
+# Common EBR Challenges
+
+```text
+
++--------------------------------------------------------------+
+| Common EBR Challenges                                        |
++--------------------------------------------------------------+
+| Invalid package bodies                                       |
+| Editioning view mismatches                                   |
+| Synonym inconsistencies                                      |
+| Dependency invalidation                                      |
+| Crossedition trigger complexity                              |
+| GoldenGate replication considerations                        |
++--------------------------------------------------------------+
+```
+
+---
+
+# GoldenGate and EBR
+
+GoldenGate replicates physical tables.
+
+However, GoldenGate does not automatically understand:
+
+```text
+
+Edition context
+Editioning logic
+Editioning views
+```
+
+This can create challenges in:
+
+- Oracle ERP Cloud integrations
+- Data warehouse replication
+- Online patching environments
+- Fusion replication architectures
+
+---
+
+# Recommended Learning Path
+
+## Beginner
+
+```text
+
+- Editions
+- Edition switching
+- Package isolation
+- DBA_EDITIONS
+- DBA_OBJECTS_AE
+```
+
+## Intermediate
+
+```text
+
+- Editioning Views
+- Crossedition Triggers
+- Online patching workflows
+- Invalid object troubleshooting
+```
+
+## Advanced
+
+```text
+
+- GoldenGate + EBR
+- Fusion patching concepts
+- Invisible indexes
+- ORA_SEED_SET analysis
+- SaaS deployment architectures
+```
+
+---
+
+# Mental Model
+
+```text
+
+Tables   = Shared
+Code     = Versioned
+Views    = Compatibility Layer
+Triggers = Migration Bridge
+```
+
+---
+
+# Related Pages
+
+- Oracle EBR Lab
+- Oracle EBR Dictionary Views and Objects
+- Oracle Fusion Online Patching
+- GoldenGate + EBR Considerations
+
+---
+
+# References
+
+- Oracle Database Documentation
+- Oracle Fusion Middleware Documentation
+- Oracle EBS Online Patching Documentation

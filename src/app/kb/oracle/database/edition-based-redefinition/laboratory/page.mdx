@@ -27,10 +27,12 @@ Different Code
 No Downtime
 
 Tables are shared.
-
 PL/SQL logic is versioned.
+```
 
-Architecture Overview
+## Architecture Overview
+
+```text
                  +----------------+
                  |   APP USERS    |
                  +--------+-------+
@@ -44,10 +46,15 @@ Architecture Overview
 | pkg_orders old  |             | pkg_orders new    |
 | view old        |             | view new          |
 +-----------------+             +-------------------+
-Editionable Objects
+```
 
-Supported:
+---
 
+# Editionable Objects
+
+## Supported
+
+```text
 PACKAGE
 PACKAGE BODY
 PROCEDURE
@@ -56,30 +63,50 @@ VIEW
 SYNONYM
 TRIGGER
 TYPE
+```
 
-Not editionable:
+## Not Editionable
 
+```text
 TABLE
 SEQUENCE
+```
 
 Because of this Oracle created:
 
-Editioning Views
-Crossedition Triggers
-Requirements
+- Editioning Views
+- Crossedition Triggers
+
+---
+
+# Requirements
+
+```text
 Oracle Database 19c or newer
 DBA privileges
+
 Recommended:
-dedicated PDB
-Step 0 - Validate Database Environment
+- Dedicated PDB
+```
+
+---
+
+# Step 0 - Validate Database Environment
 
 Before creating the EBR user, validate the database version, current container, database properties, and important parameters.
 
-Validate Database Version
+## Validate Database Version
+
+```sql
 SELECT banner_full
 FROM v$version;
-Validate Current Container
+```
+
+## Validate Current Container
+
+```sql
 SHOW CON_NAME;
+
 SELECT
     con_id,
     name,
@@ -87,13 +114,19 @@ SELECT
     restricted
 FROM v$pdbs
 ORDER BY con_id;
-Validate Database Properties
+```
+
+## Validate Database Properties
+
+```sql
 SELECT *
 FROM database_properties
 ORDER BY property_name;
+```
 
-Filtered version:
+## Filtered Database Properties
 
+```sql
 SELECT
     property_name,
     property_value
@@ -102,7 +135,11 @@ WHERE property_name LIKE '%EDITION%'
    OR property_name LIKE '%DEFAULT%'
    OR property_name LIKE '%PDB%'
 ORDER BY property_name;
-Validate Important Parameters
+```
+
+## Validate Important Parameters
+
+```sql
 SELECT
     name,
     value,
@@ -117,21 +154,37 @@ WHERE name IN (
     'plsql_optimize_level'
 )
 ORDER BY name;
-Validate Current Edition
+```
+
+## Validate Current Edition
+
+```sql
 SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME') AS current_edition
 FROM dual;
+```
 
 Expected:
 
+```text
 ORA$BASE
-Validate Existing Editions
+```
+
+## Validate Existing Editions
+
+```sql
 SELECT
     edition_name,
     parent_edition_name,
     usable
 FROM dba_editions
 ORDER BY edition_name;
-Step 1 - Create EBR User
+```
+
+---
+
+# Step 1 - Create EBR User
+
+```sql
 CREATE USER ebr IDENTIFIED BY ebr;
 
 GRANT CONNECT, RESOURCE TO ebr;
@@ -147,9 +200,11 @@ GRANT CREATE ANY EDITION TO ebr;
 GRANT DROP ANY EDITION TO ebr;
 
 ALTER USER ebr ENABLE EDITIONS;
+```
 
-Verify:
+## Verify User
 
+```sql
 SELECT
     username,
     editions_enabled,
@@ -158,38 +213,60 @@ SELECT
     temporary_tablespace
 FROM dba_users
 WHERE username='EBR';
+```
 
 Expected:
 
+```text
 EDITIONS_ENABLED = Y
-Step 2 - Connect as EBR
+```
+
+---
+
+# Step 2 - Connect as EBR
+
+```sql
 CONN ebr/ebr
+```
 
-Verify current schema and edition:
+## Verify Current Schema and Edition
 
+```sql
 SELECT
     SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS current_schema,
     SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME') AS current_edition
 FROM dual;
-Step 3 - Create Base Table
+```
+
+---
+
+# Step 3 - Create Base Table
+
+```sql
 CREATE TABLE customers (
     customer_id NUMBER,
     name        VARCHAR2(100)
 );
+```
 
-Insert data:
+## Insert Data
 
+```sql
 INSERT INTO customers VALUES (1,'JOHN');
 
 COMMIT;
+```
 
-Validate table data:
+## Validate Table Data
 
+```sql
 SELECT *
 FROM customers;
+```
 
-Validate object status:
+## Validate Object Status
 
+```sql
 SELECT
     object_name,
     object_type,
@@ -197,15 +274,26 @@ SELECT
     edition_name
 FROM user_objects_ae
 WHERE object_name = 'CUSTOMERS';
-Step 4 - Create Initial Package
-Package Specification
+```
+
+---
+
+# Step 4 - Create Initial Package
+
+## Package Specification
+
+```sql
 CREATE OR REPLACE PACKAGE pkg_customers AS
 
     PROCEDURE show_customer(p_id NUMBER);
 
 END;
 /
-Package Body
+```
+
+## Package Body
+
+```sql
 CREATE OR REPLACE PACKAGE BODY pkg_customers AS
 
 PROCEDURE show_customer(p_id NUMBER) IS
@@ -225,9 +313,11 @@ END;
 
 END;
 /
+```
 
-Validate package objects:
+## Validate Package Objects
 
+```sql
 SELECT
     object_name,
     object_type,
@@ -236,49 +326,89 @@ SELECT
 FROM user_objects_ae
 WHERE object_name = 'PKG_CUSTOMERS'
 ORDER BY object_type;
-Step 5 - Test Initial Version
+```
+
+---
+
+# Step 5 - Test Initial Version
+
+```sql
 SET SERVEROUTPUT ON
 
 EXEC pkg_customers.show_customer(1);
+```
 
 Expected output:
 
+```text
 V1 CUSTOMER=JOHN
-Step 6 - View Existing Editions
+```
+
+---
+
+# Step 6 - View Existing Editions
+
+```sql
 SELECT *
 FROM dba_editions;
+```
 
-Better validation query:
+## Better Validation Query
 
+```sql
 SELECT
     edition_name,
     parent_edition_name,
     usable
 FROM dba_editions
 ORDER BY edition_name;
-Step 7 - Create New Edition
+```
+
+---
+
+# Step 7 - Create New Edition
+
+```sql
 CREATE EDITION version2 AS CHILD OF ora$base;
+```
 
-Validate edition was created:
+## Validate Edition
 
+```sql
 SELECT
     edition_name,
     parent_edition_name,
     usable
 FROM dba_editions
 WHERE edition_name = 'VERSION2';
-Step 8 - Switch Session to New Edition
+```
+
+---
+
+# Step 8 - Switch Session to New Edition
+
+```sql
 ALTER SESSION SET EDITION = version2;
+```
 
-Verify:
+## Verify Edition
 
+```sql
 SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
 FROM dual;
+```
 
 Expected:
 
+```text
 VERSION2
-Step 9 - Modify Package ONLY in Version2
+```
+
+---
+
+# Step 9 - Modify Package ONLY in Version2
+
+```sql
 CREATE OR REPLACE PACKAGE BODY pkg_customers AS
 
 PROCEDURE show_customer(p_id NUMBER) IS
@@ -298,9 +428,11 @@ END;
 
 END;
 /
+```
 
-Validate package status in all editions:
+## Validate Package Status
 
+```sql
 SELECT
     object_name,
     object_type,
@@ -310,62 +442,67 @@ FROM user_objects_ae
 WHERE object_name = 'PKG_CUSTOMERS'
 ORDER BY object_type,
          edition_name;
-Step 10 - Validate Isolation
-Session 1
+```
+
+---
+
+# Step 10 - Validate Isolation
+
+## Session 1
+
+```sql
 ALTER SESSION SET EDITION = ora$base;
 
 EXEC pkg_customers.show_customer(1);
+```
 
 Expected:
 
+```text
 V1 CUSTOMER=JOHN
+```
 
-Verify current edition:
+## Session 2
 
-SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
-FROM dual;
-Session 2
+```sql
 ALTER SESSION SET EDITION = version2;
 
 EXEC pkg_customers.show_customer(1);
+```
 
 Expected:
 
+```text
 V2 CUSTOMER=JOHN
+```
 
-Verify current edition:
+## Important Observation
 
-SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
-FROM dual;
-Important Observation
-
+```text
 Both editions use the same physical table:
 
 customers
 
 But execute different code versions.
+```
 
-Validate table is non-editioned:
+---
 
-SELECT
-    object_name,
-    object_type,
-    edition_name
-FROM user_objects_ae
-WHERE object_name = 'CUSTOMERS';
+# Editioning Views
 
-Expected concept:
+## Why Editioning Views Exist
 
-TABLE is shared.
-PACKAGE BODY is editioned.
-Editioning Views
-Why Editioning Views Exist
-
+```text
 Tables are not editionable.
 
 Oracle uses Editioning Views to abstract table structure changes.
+```
 
-Step 11 - Create New Table Version
+---
+
+# Step 11 - Create New Table Version
+
+```sql
 CREATE TABLE customers2 (
 
     customer_id NUMBER,
@@ -373,76 +510,66 @@ CREATE TABLE customers2 (
     email       VARCHAR2(100)
 
 );
+```
 
-Insert sample data:
+## Insert Sample Data
 
+```sql
 INSERT INTO customers2
 VALUES (1,'JOHN','john@test.com');
 
 COMMIT;
+```
 
-Validate:
+## Validate Data
 
+```sql
 SELECT *
 FROM customers2;
-Step 12 - Create Editioning View
+```
+
+---
+
+# Step 12 - Create Editioning View
+
+```sql
 CREATE EDITIONING VIEW ev_customers AS
 
 SELECT
     customer_id,
     name
 FROM customers2;
+```
 
-Validate editioning view:
+## Validate Editioning View
 
+```sql
 SELECT
     view_name,
     editioning_view
 FROM user_views
 WHERE view_name = 'EV_CUSTOMERS';
+```
 
-Validate object status:
+---
 
-SELECT
-    object_name,
-    object_type,
-    status,
-    edition_name
-FROM user_objects_ae
-WHERE object_name = 'EV_CUSTOMERS';
-Benefit
+# Crossedition Triggers
 
-Old application:
+## Purpose
 
-Uses:
-- customer_id
-- name
-
-New application:
-
-Uses:
-- customer_id
-- name
-- email
-
-Without breaking compatibility.
-
-Crossedition Triggers
-
-Used during online migrations.
-
-Purpose:
-
-synchronize old column model
-synchronize new column model
+```text
+Synchronize old column model
+Synchronize new column model
+```
 
 Very common in:
 
-Oracle Fusion
-Oracle EBS Online Patching
+- Oracle Fusion
+- Oracle EBS Online Patching
 
-Validate crossedition triggers:
+## Validate Crossedition Triggers
 
+```sql
 SELECT
     trigger_name,
     trigger_type,
@@ -452,25 +579,22 @@ SELECT
     crossedition
 FROM user_triggers
 ORDER BY trigger_name;
+```
 
-DBA version:
+---
 
-SELECT
-    owner,
-    trigger_name,
-    trigger_type,
-    triggering_event,
-    table_name,
-    status,
-    crossedition
-FROM dba_triggers
-WHERE owner = 'EBR'
-ORDER BY trigger_name;
-Useful Queries
-Current Edition
+# Useful Queries
+
+## Current Edition
+
+```sql
 SELECT SYS_CONTEXT('USERENV','CURRENT_EDITION_NAME')
 FROM dual;
-Editioned Objects
+```
+
+## Editioned Objects
+
+```sql
 SELECT
     object_name,
     object_type,
@@ -479,131 +603,51 @@ SELECT
 FROM user_objects_ae
 ORDER BY object_name,
          edition_name;
-All Editions
+```
+
+## All Editions
+
+```sql
 SELECT
     edition_name,
     parent_edition_name,
     usable
 FROM dba_editions
 ORDER BY edition_name;
-Database Properties
-SELECT *
-FROM database_properties
-ORDER BY property_name;
-Edition-Enabled Users
-SELECT
-    username,
-    editions_enabled
-FROM dba_users
-WHERE editions_enabled = 'Y'
-ORDER BY username;
-Invalid Objects
-SELECT
-    object_name,
-    object_type,
-    status,
-    edition_name
-FROM user_objects_ae
-WHERE status <> 'VALID'
-ORDER BY object_type,
-         object_name;
+```
 
-DBA version:
+---
 
-SELECT
-    owner,
-    object_name,
-    object_type,
-    status,
-    edition_name
-FROM dba_objects_ae
-WHERE owner = 'EBR'
-  AND status <> 'VALID'
-ORDER BY object_type,
-         object_name;
-Important DBA Parameters
-SELECT
-    name,
-    value,
-    isdefault,
-    isses_modifiable,
-    issys_modifiable
-FROM v$parameter
-WHERE name IN (
-    'compatible',
-    'enable_ddl_logging',
-    'plsql_code_type',
-    'plsql_optimize_level'
-)
-ORDER BY name;
-Drop Edition
-DROP EDITION version2 CASCADE;
-
-Validate removal:
-
-SELECT
-    edition_name,
-    parent_edition_name,
-    usable
-FROM dba_editions
-ORDER BY edition_name;
-Real World Oracle SaaS Usage
-
-Oracle ERP Cloud commonly uses editions like:
-
-ORA$BASE
-PATCH_2026_01
-PATCH_2026_02
-PATCH_2026_03
-
-Combined with:
-
-Editioning Views
-Crossedition Triggers
-Invisible Indexes
-Seed Sets
-
-This is why Fusion tables often contain:
-
-ORA_SEED_SET1
-ORA_SEED_SET2
-
-Useful validation for Fusion-like tables:
-
-SELECT
-    owner,
-    table_name,
-    column_name
-FROM dba_tab_columns
-WHERE column_name IN ('ORA_SEED_SET1', 'ORA_SEED_SET2')
-ORDER BY owner,
-         table_name,
-         column_name;
-GoldenGate + EBR Considerations
-
-Important for replication environments.
+# GoldenGate + EBR Considerations
 
 GoldenGate replicates:
 
-physical tables
+```text
+Physical tables
+```
 
 GoldenGate does NOT automatically understand:
 
-edition context
-editioning logic
+```text
+Edition context
+Editioning logic
+```
 
-Common issues:
+## Common Issues
 
+```text
 DDL out of order
-wrong edition execution
-editioning view mismatches
-invalid synonyms
+Wrong edition execution
+Editioning view mismatches
+Invalid synonyms
 ORA-38802
 ORA-38818
 ORA-42314
+```
 
-Useful GoldenGate/EBR validation queries:
+## Useful GoldenGate Queries
 
+```sql
 SELECT
     owner,
     object_name,
@@ -614,72 +658,27 @@ FROM dba_objects_ae
 WHERE owner = 'EBR'
 ORDER BY object_name,
          edition_name;
-SELECT
-    owner,
-    synonym_name,
-    table_owner,
-    table_name,
-    db_link
-FROM dba_synonyms
-WHERE owner = 'EBR'
-ORDER BY synonym_name;
-SELECT
-    owner,
-    view_name,
-    editioning_view
-FROM dba_views
-WHERE owner = 'EBR'
-ORDER BY view_name;
-Recommended Next Labs
-Beginner
-multiple editions
-package isolation
-edition switching
-validation using database_properties
-validation using dba_editions
-Intermediate
-editioning views
-crossedition triggers
-online column migration
-invalid object validation
-synonym validation
-Advanced
-GoldenGate + EBR
-invisible indexes
-online patching simulation
-ERP Cloud style deployment
-ORA_SEED_SET1 / ORA_SEED_SET2 analysis
-Recommended Validation Flow
-1. Validate database version
-2. Validate current PDB/container
-3. Validate database_properties
-4. Validate important v$parameter values
-5. Validate current edition
-6. Validate existing editions
-7. Create EBR user
-8. Validate editions_enabled = Y
-9. Create base table
-10. Validate table object
-11. Create package
-12. Validate package object
-13. Create new edition
-14. Validate dba_editions
-15. Switch edition
-16. Validate current edition
-17. Modify package body
-18. Validate user_objects_ae
-19. Test isolation between ORA$BASE and VERSION2
-20. Create editioning view
-21. Validate user_views / dba_views
-22. Validate invalid objects
-23. Validate crossedition triggers if used
-24. Drop edition when lab is complete
-Mental Model
-Tables = Shared
-Code   = Versioned
-Views  = Compatibility Layer
+```
+
+---
+
+# Mental Model
+
+```text
+Tables   = Shared
+Code     = Versioned
+Views    = Compatibility Layer
 Triggers = Migration Bridge
-Oracle Documentation
+```
+
+---
+
+# Oracle Documentation
+
+```text
 https://docs.oracle.com/en/database/oracle/oracle-database/23/adfns/editions.html
+
 https://docs.oracle.com/en/database/oracle/oracle-database/23/adfns/edition-based-redefinition.html
+
 https://docs.oracle.com/cd/E26401_01/doc.122/e22954/T202991T531065.htm
+```

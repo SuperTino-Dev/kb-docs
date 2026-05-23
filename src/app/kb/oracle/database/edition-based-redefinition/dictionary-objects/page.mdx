@@ -1,0 +1,796 @@
+# Oracle EBR Dictionary Views and Editioned Objects
+
+Edition-Based Redefinition (EBR) allows Oracle Database to keep multiple versions of application objects active at the same time. This is very important in environments where online patching, application upgrades, and reduced downtime are required.
+
+In Oracle Fusion Applications and Oracle ERP Cloud, EBR is used heavily to support patching and application changes while users and background jobs may still be using the system.
+
+The main idea is simple:
+
+```text
++--------------------------------------------------------------+
+| EBR Concept                                                  |
++--------------------------------------------------------------+
+| One database can contain multiple editions                   |
+| Each edition can have its own version of editioned objects   |
+| Sessions can run under a specific edition                    |
+| New code can be deployed without immediately replacing old   |
+| applications can switch editions when patching is complete   |
++--------------------------------------------------------------+
+```
+
+---
+
+# 1. Core EBR Object Views
+
+## 1.1 DBA_OBJECTS_AE
+
+`DBA_OBJECTS_AE` is the most important DBA view for checking objects across all editions.
+
+The suffix `_AE` means **All Editions**. Unlike `DBA_OBJECTS`, this view can show multiple versions of the same object when that object exists in more than one edition.
+
+### Why this matters for EBR
+
+In EBR environments, one package, view, synonym, trigger, or type may exist in different editions at the same time. If you only check `DBA_OBJECTS`, you may not see the complete picture.
+
+Use `DBA_OBJECTS_AE` when you need to validate the real status of editioned objects during or after patching.
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM dba_objects_ae
+ORDER BY owner, object_name, edition_name;
+```
+
+### Useful Columns
+
+```text
++----------------+----------------------------------+
+| Column         | Description                      |
++----------------+----------------------------------+
+| OWNER          | Schema owner                    |
+| OBJECT_NAME    | Object name                     |
+| OBJECT_TYPE    | Type of object                  |
+| EDITION_NAME   | Edition where object exists     |
+| STATUS         | VALID / INVALID                 |
+| SHARING        | Metadata/Data sharing mode      |
++----------------+----------------------------------+
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Find invalid objects by edition                              |
+| Compare object versions across editions                      |
+| Validate objects after online patching                       |
+| Check whether a package exists in old and new editions       |
+| Identify edition-specific object status                      |
+| Troubleshoot ORA-04063, ORA-06508, and dependency issues     |
++--------------------------------------------------------------+
+```
+
+Example: find invalid editioned objects.
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM dba_objects_ae
+WHERE status <> 'VALID'
+ORDER BY owner, object_name, edition_name;
+```
+
+---
+
+## 1.2 ALL_OBJECTS_AE
+
+`ALL_OBJECTS_AE` shows objects across all editions that are accessible to the current user.
+
+It is similar to `DBA_OBJECTS_AE`, but it does not require full DBA visibility.
+
+### Why this matters for EBR
+
+This is useful when you are connected with an application schema, support user, or restricted account and need to review editioned objects visible to that user.
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM all_objects_ae
+ORDER BY owner, object_name, edition_name;
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Validate accessible editioned objects without DBA privileges |
+| Troubleshoot application schema object visibility            |
+| Confirm which editioned objects the current user can access  |
+| Compare results against DBA_OBJECTS_AE when access differs   |
++--------------------------------------------------------------+
+```
+
+---
+
+## 1.3 USER_OBJECTS_AE
+
+`USER_OBJECTS_AE` shows editioned objects owned by the current schema across all editions.
+
+### Why this matters for EBR
+
+This is useful when logged in directly as the schema owner. It helps validate the schema's own objects without filtering by owner.
+
+```sql
+SELECT object_name,
+       object_type,
+       edition_name,
+       status
+FROM user_objects_ae
+ORDER BY object_name, edition_name;
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Review current schema objects across editions                |
+| Find invalid package bodies owned by the schema              |
+| Validate custom schema objects after patching                |
+| Check edition-specific object status without DBA access      |
++--------------------------------------------------------------+
+```
+
+---
+
+# 2. EBR Edition Metadata Views
+
+## 2.1 DBA_EDITIONS
+
+`DBA_EDITIONS` lists the editions that exist in the database.
+
+An edition is a logical namespace where editioned objects can have a specific version.
+
+### Why this matters for EBR
+
+Before troubleshooting editioned objects, you need to know which editions exist, which edition is usable, and how editions are related.
+
+```sql
+SELECT edition_name,
+       parent_edition_name,
+       usable
+FROM dba_editions
+ORDER BY edition_name;
+```
+
+### Useful Columns
+
+```text
++----------------------+--------------------------------+
+| Column               | Description                    |
++----------------------+--------------------------------+
+| EDITION_NAME         | Edition name                   |
+| PARENT_EDITION_NAME  | Parent edition                 |
+| USABLE               | Whether edition is usable      |
++----------------------+--------------------------------+
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| List all editions in the database                            |
+| Identify parent and child edition relationships              |
+| Confirm whether an edition is usable                         |
+| Validate editions before switching session edition           |
+| Support patching analysis and edition cleanup review         |
++--------------------------------------------------------------+
+```
+
+---
+
+## 2.2 DBA_USERS
+
+`DBA_USERS` is used to identify which schemas are edition-enabled.
+
+The important column for EBR is `EDITIONS_ENABLED`.
+
+### Why this matters for EBR
+
+A schema must be edition-enabled before it can own editioned objects. If a schema is not edition-enabled, objects in that schema will not behave as editioned application objects.
+
+```sql
+SELECT username,
+       editions_enabled
+FROM dba_users
+WHERE editions_enabled = 'Y'
+ORDER BY username;
+```
+
+### Useful Columns
+
+```text
++----------------------+--------------------------------+
+| Column               | Description                    |
++----------------------+--------------------------------+
+| USERNAME             | Schema name                    |
+| EDITIONS_ENABLED     | Y = EBR enabled                |
++----------------------+--------------------------------+
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Identify schemas participating in EBR                        |
+| Confirm whether a custom schema is edition-enabled           |
+| Validate Fusion or application schemas before analysis       |
+| Explain why some objects do not appear as editioned          |
++--------------------------------------------------------------+
+```
+
+---
+
+# 3. Editioning Views
+
+## 3.1 DBA_EDITIONING_VIEWS
+
+`DBA_EDITIONING_VIEWS` shows editioning views in the database.
+
+An editioning view is a special view that exposes a stable interface over a base table.
+
+### Why this matters for EBR
+
+Tables are not editioned, but views can be editioned. Oracle uses editioning views to allow application code to change while the underlying table remains stable.
+
+Applications should reference editioning views instead of directly referencing base tables when EBR design is required.
+
+```sql
+SELECT owner,
+       view_name,
+       table_name
+FROM dba_editioning_views
+ORDER BY owner, view_name;
+```
+
+### Useful Columns
+
+```text
++----------------+----------------------------------+
+| Column         | Description                      |
++----------------+----------------------------------+
+| OWNER          | Schema owner                    |
+| VIEW_NAME      | Editioning view name            |
+| TABLE_NAME     | Underlying table name           |
++----------------+----------------------------------+
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Find editioning views for a schema                           |
+| Map application-facing views to base tables                  |
+| Validate whether a table is protected by an editioning view  |
+| Review EBR design before changing table structures           |
+| Troubleshoot application SQL that uses editioning views      |
++--------------------------------------------------------------+
+```
+
+---
+
+## 3.2 ALL_EDITIONING_VIEWS
+
+`ALL_EDITIONING_VIEWS` shows editioning views accessible to the current user.
+
+### Why this matters for EBR
+
+This is useful when you do not have DBA privileges but need to check which editioning views are visible to your current account.
+
+```sql
+SELECT owner,
+       view_name,
+       table_name
+FROM all_editioning_views
+ORDER BY owner, view_name;
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Review accessible editioning views                           |
+| Check whether application user can see required views        |
+| Troubleshoot privilege or synonym issues                     |
+| Compare accessible views with DBA_EDITIONING_VIEWS           |
++--------------------------------------------------------------+
+```
+
+---
+
+## 3.3 USER_EDITIONING_VIEWS
+
+`USER_EDITIONING_VIEWS` shows editioning views owned by the current schema.
+
+### Why this matters for EBR
+
+This is useful when logged in as the application owner or custom schema owner and you want to validate your own editioning views.
+
+```sql
+SELECT view_name,
+       table_name
+FROM user_editioning_views
+ORDER BY view_name;
+```
+
+### How to use it for EBR
+
+Use this view to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| List editioning views owned by current schema                |
+| Validate custom EBR design                                   |
+| Confirm whether application tables have editioning views     |
+| Support deployment validation after DDL changes              |
++--------------------------------------------------------------+
+```
+
+---
+
+# 4. Objects That Can Be Editioned
+
+Oracle allows only certain object types to be editioned.
+
+These are usually code or metadata objects that application logic depends on.
+
+```text
++------------------------------+
+| Editioned Object Types       |
++------------------------------+
+| SYNONYM                      |
+| VIEW                         |
+| SQL TRANSLATION PROFILE      |
+| FUNCTION                     |
+| LIBRARY                      |
+| PACKAGE                      |
+| PACKAGE BODY                 |
+| PROCEDURE                    |
+| TRIGGER                      |
+| TYPE                         |
+| TYPE BODY                    |
++------------------------------+
+```
+
+### Why this matters for EBR
+
+When patching application logic, Oracle can create a new version of these objects in a new edition while the old version remains available to sessions using the old edition.
+
+### How to use this for EBR
+
+Use this list to understand which objects may have multiple versions across editions.
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Focus troubleshooting on editionable object types            |
+| Understand why packages and views can differ by edition      |
+| Validate object status in DBA_OBJECTS_AE                     |
+| Explain why application code can change with reduced downtime|
++--------------------------------------------------------------+
+```
+
+---
+
+# 5. Objects That Cannot Be Editioned
+
+Some objects are non-editioned. They exist once in the database and are shared across editions.
+
+```text
++------------------------------+
+| Non-Editioned Objects        |
++------------------------------+
+| TABLE                        |
+| INDEX                        |
+| MATERIALIZED VIEW            |
+| SEQUENCE                     |
+| DIRECTORY                    |
+| CONTROLFILE                  |
+| DATAFILE                     |
++------------------------------+
+```
+
+### Why this matters for EBR
+
+Tables are not editioned. This is why editioning views and cross-edition triggers are important in EBR designs.
+
+Changing a table structure directly may affect all editions, so table changes require careful planning.
+
+### How to use this for EBR
+
+Use this list to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Identify objects shared by all editions                      |
+| Avoid assuming tables have edition-specific versions         |
+| Plan DDL changes carefully during patching                   |
+| Understand why editioning views are needed over tables       |
++--------------------------------------------------------------+
+```
+
+---
+
+# 6. Detecting Invalid Editioned Objects
+
+Invalid objects are a common issue after deployments, patches, or dependency changes.
+
+### Why this matters for EBR
+
+An object may be valid in one edition but invalid in another. This can cause failures only for sessions running under a specific edition.
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM dba_objects_ae
+WHERE status <> 'VALID'
+ORDER BY owner, object_name, edition_name;
+```
+
+### How to use it for EBR
+
+Use this query to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Find invalid objects by edition                              |
+| Detect patching issues before releasing an edition           |
+| Confirm whether invalidation is isolated to one edition      |
+| Prioritize recompilation or dependency investigation         |
++--------------------------------------------------------------+
+```
+
+---
+
+# 7. Viewing Multiple Versions of the Same Object
+
+One of the most important EBR troubleshooting steps is checking whether the same object exists in multiple editions.
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM dba_objects_ae
+WHERE object_name = 'XX_CUSTOM_PACKAGE'
+ORDER BY edition_name;
+```
+
+### Why this matters for EBR
+
+A package or view may work in one edition but fail in another because each edition may have a different version.
+
+### How to use it for EBR
+
+Use this query to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Compare object status across editions                        |
+| Confirm whether a patch created a new object version         |
+| Troubleshoot edition-specific application errors             |
+| Validate object visibility before and after edition switch   |
++--------------------------------------------------------------+
+```
+
+---
+
+# 8. Identifying Editioned Schemas
+
+```sql
+SELECT username,
+       editions_enabled
+FROM dba_users
+ORDER BY username;
+```
+
+### Description
+
+This query shows all schemas and whether each schema is edition-enabled.
+
+### How to use it for EBR
+
+Use this query to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Identify which schemas can own editioned objects             |
+| Confirm whether custom schemas are prepared for EBR          |
+| Detect schemas that may not participate in online patching   |
+| Support environment readiness checks                         |
++--------------------------------------------------------------+
+```
+
+---
+
+# 9. Checking Current Session Edition
+
+```sql
+SELECT sys_context('USERENV','CURRENT_EDITION_NAME')
+FROM dual;
+```
+
+### Description
+
+This query shows the current edition used by your session.
+
+### Why this matters for EBR
+
+Two sessions connected to the same database may see different versions of editioned objects if they are using different editions.
+
+### How to use it for EBR
+
+Use this query to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Confirm which edition your session is using                  |
+| Troubleshoot why your session sees different object behavior |
+| Validate testing under old or new edition                    |
+| Avoid false conclusions during patching analysis             |
++--------------------------------------------------------------+
+```
+
+---
+
+# 10. Switching Editions
+
+```sql
+ALTER SESSION SET EDITION = my_edition;
+```
+
+### Description
+
+This command changes the edition used by the current session.
+
+### Why this matters for EBR
+
+Switching editions allows you to test how application objects behave under a specific edition.
+
+### How to use it for EBR
+
+Use this command to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Test object behavior in another edition                      |
+| Validate package compilation under a target edition          |
+| Compare old and new application logic                        |
+| Reproduce edition-specific errors                            |
++--------------------------------------------------------------+
+```
+
+---
+
+# 11. Common EBR Object Status Issues
+
+```text
++-----------------------------------------------+
+| Common EBR Issues                             |
++-----------------------------------------------+
+| Package body invalid after patching           |
+| Editioning view mismatch                      |
+| Missing synonym                               |
+| Dependency invalidation                       |
+| Cross-edition object mismatch                 |
+| Online patching failures                      |
+| ORA-04063 errors                              |
+| ORA-388xx editioning errors                   |
++-----------------------------------------------+
+```
+
+### Description
+
+These issues usually appear when objects are changed in one edition, dependencies are not aligned, or application sessions are using a different edition than expected.
+
+### How to use it for EBR
+
+Use this checklist to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Create troubleshooting runbooks for patching issues          |
+| Check invalid objects first before deeper investigation      |
+| Validate synonyms, views, and package dependencies           |
+| Confirm whether error is edition-specific                    |
++--------------------------------------------------------------+
+```
+
+---
+
+# 12. EBR in Oracle Fusion Applications
+
+Oracle Fusion Applications and Oracle ERP Cloud rely heavily on EBR concepts.
+
+```text
++-----------------------------------------------+
+| Oracle Fusion EBR Indicators                  |
++-----------------------------------------------+
+| ORA_SEED_SET1                                 |
+| ORA_SEED_SET2                                 |
+| Editioning Views                              |
+| Multiple package versions                     |
+| Online patching                               |
+| FUSION_RUNTIME schemas                        |
+| Seed data patching                            |
++-----------------------------------------------+
+```
+
+### Description
+
+Fusion environments include EBR-related patterns such as editioning views, seed data handling, and edition-aware application objects.
+
+`ORA_SEED_SET1` and `ORA_SEED_SET2` are commonly seen in Fusion seed data tables and are related to patching and seed data lifecycle behavior.
+
+### How to use it for EBR
+
+Use this section to:
+
+```text
++--------------------------------------------------------------+
+| EBR Usage                                                    |
++--------------------------------------------------------------+
+| Recognize Fusion-specific EBR indicators                     |
+| Understand why some tables contain ORA_SEED_SET columns      |
+| Support ERP Cloud patching and troubleshooting analysis      |
+| Avoid incorrect assumptions during data replication reviews  |
++--------------------------------------------------------------+
+```
+
+---
+
+# 13. Recommended Validation Queries
+
+## 13.1 Validate Editions
+
+```sql
+SELECT *
+FROM dba_editions;
+```
+
+### How to use it for EBR
+
+Use this query to confirm which editions exist before analyzing editioned objects.
+
+---
+
+## 13.2 Validate Edition-Enabled Users
+
+```sql
+SELECT username,
+       editions_enabled
+FROM dba_users
+WHERE editions_enabled = 'Y';
+```
+
+### How to use it for EBR
+
+Use this query to identify schemas that can own editioned objects.
+
+---
+
+## 13.3 Validate Editioning Views
+
+```sql
+SELECT owner,
+       view_name,
+       table_name
+FROM dba_editioning_views;
+```
+
+### How to use it for EBR
+
+Use this query to map application-facing editioning views to base tables.
+
+---
+
+## 13.4 Validate Invalid Editioned Objects
+
+```sql
+SELECT owner,
+       object_name,
+       object_type,
+       edition_name,
+       status
+FROM dba_objects_ae
+WHERE status = 'INVALID';
+```
+
+### How to use it for EBR
+
+Use this query after patching or deployment to find objects that need recompilation or dependency review.
+
+---
+
+# 14. Important Notes
+
+```text
++--------------------------------------------------------------+
+| Important Notes                                              |
++--------------------------------------------------------------+
+| DBA_OBJECTS does NOT expose all EBR object versions          |
+| DBA_OBJECTS_AE should be used for EBR troubleshooting        |
+| Fusion Applications depend heavily on editioning views       |
+| EBR enables online patching with reduced downtime            |
+| Multiple object versions may coexist simultaneously          |
++--------------------------------------------------------------+
+```
+
+### How to use this section
+
+Use these notes as the main checklist when explaining EBR behavior to DBAs, developers, ERP teams, or replication teams.
+
+---
+
+# 15. References
+
+- Oracle Database EBR Documentation
+- Oracle Fusion Middleware Documentation
+- Oracle ERP Cloud Architecture
+- Oracle Online Patching Concepts
