@@ -1,0 +1,17 @@
+# oracle-epm-planning-guide.mdx
+
+```mdx
+---
+title: Oracle Enterprise Performance Management Planning Guide
+description: Enterprise architecture, planning foundations, FreeForm, Planning Modules, integrations, security, troubleshooting, and consulting concepts for Oracle EPM.
+tags:
+  - Oracle EPM
+  - Oracle Planning
+  - FreeForm
+  - Planning Modules
+  - Enterprise Architecture
+  - Smart View
+  - Data Integration
+  - Oracle Cloud
+---
+

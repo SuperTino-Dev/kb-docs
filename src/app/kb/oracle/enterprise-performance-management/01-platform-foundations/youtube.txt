@@ -1,0 +1,9 @@
+title: Phase 1 Analysis Framework
+description: Structured enterprise analysis framework for Oracle EPM Platform Foundations.
+tags:
+  - Oracle EPM
+  - Enterprise Planning
+  - Architecture
+  - Consulting
+  - KBSCORP
+---

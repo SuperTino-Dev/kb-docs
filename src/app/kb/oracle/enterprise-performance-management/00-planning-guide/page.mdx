@@ -1,0 +1,696 @@
+# Oracle Enterprise Performance Management Planning Guide
+
+## 1. Executive Summary
+
+Oracle Enterprise Performance Management (EPM) represents a strategic shift from highly manual, fragmented budgeting processes to an integrated, enterprise-class performance management framework.
+
+Oracle Planning serves as the forward-looking analytical engine of the EPM suite, designed to unify financial and operational planning into a single source of truth.
+
+While ERP systems operate as transactional systems that record historical actuals, Oracle Planning transforms those actuals into:
+
+- what-if modeling
+- variance analysis
+- predictive forecasting
+- operational planning
+- enterprise analytics
+
+Enterprise planning concepts rely heavily on:
+
+- multi-dimensional calculation engines
+- workflow-driven approvals
+- integrations
+- centralized metadata
+- role-based security
+- Intelligent Performance Management (IPM)
+
+
+## 2. Planning Architecture
+
+Oracle Planning architecture is built around multi-dimensional database structures known as cubes.
+
+
+### Cubes
+
+Applications commonly use:
+
+- BSO cubes for planning input, calculations, spreading, and operational planning
+- ASO cubes for high-speed reporting and aggregation
+- Hybrid cubes combining BSO calculations with ASO aggregation performance
+
+
+### Dimensions & Metadata
+
+Dimensions organize business data into categories such as:
+
+- Time
+- Account
+- Entity
+- Scenario
+- Version
+- Product
+- Customer
+
+Metadata defines:
+
+- hierarchies
+- aliases
+- properties
+- dense/sparse behavior
+- aggregation logic
+
+Dense and sparse configuration directly impacts Essbase performance.
+
+
+### Forms & Dashboards
+
+Forms provide spreadsheet-like interfaces where planners enter and review data.
+
+Dashboards provide:
+
+- visual analytics
+- charts
+- KPIs
+- interactive reporting
+- executive summaries
+
+
+### Business Rules & Calculations
+
+Business rules are managed through Calculation Manager.
+
+Rules enable:
+
+- allocations
+- spreading
+- currency conversion
+- forecasting
+- custom logic
+- validations
+
+
+### Smart View
+
+Smart View integrates Oracle EPM with Microsoft Office.
+
+It enables:
+
+- ad hoc analysis
+- Excel-based planning
+- metadata management
+- reporting
+- administration from Excel
+
+
+### Integrations
+
+External integrations commonly use:
+
+- Data Integration
+- Data Management
+- REST APIs
+- EPM Automate
+
+Internal cube movement commonly uses:
+
+- Data Maps
+- Smart Push
+
+
+### Approvals & Reporting
+
+Approval workflows manage:
+
+- submissions
+- reviews
+- approvals
+- sign-offs
+- locking processes
+
+Reporting tools generate:
+
+- formatted financial reports
+- variance analysis
+- dashboards
+- management reporting
+
+
+## 3. FreeForm vs Planning Modules
+
+Oracle provides multiple application approaches depending on enterprise requirements.
+
+
+### Planning Modules
+
+Planning Modules provide:
+
+- prebuilt business logic
+- standard dimensions
+- predefined KPIs
+- faster implementations
+- Oracle best practices
+
+Modules include:
+
+- Financials
+- Workforce
+- Capital
+- Projects
+- Strategic Modeling
+
+
+### Custom Planning Applications
+
+Custom applications allow:
+
+- tailored dimensional design
+- customized calculations
+- enterprise-specific architecture
+- advanced planning models
+
+
+### FreeForm Applications
+
+FreeForm applications provide unrestricted dimensional flexibility.
+
+Features include:
+
+- custom dimensions
+- multiple cubes
+- Essbase OTL migration
+- standalone reporting architectures
+- flexible ASO/BSO combinations
+
+
+### Comparison
+
+```
+
+| Feature                   | Planning Modules                  | FreeForm                         |
+| ------------------------- | --------------------------------- | -------------------------------- |
+| Implementation Speed      | Faster                            | Slower                           |
+| Flexibility               | Moderate                          | Very High                        |
+| Governance                | Strong                            | Requires manual governance       |
+| Business Logic            | Prebuilt                          | Custom                           |
+| Enterprise Customization  | Limited                           | Extensive                        |
+| Standardization           | Oracle-driven                     | Customer-driven                  |
+
+```
+
+
+
+## 4. SaaS & Environment Strategy
+
+Oracle EPM Cloud operates as a SaaS platform.
+
+
+### Environment Strategy
+
+Typical enterprise environments include:
+
+```text
+
+DEV
+↓
+TEST
+↓
+UAT
+↓
+PROD
+```
+
+
+### Maintenance Strategy
+
+Oracle performs:
+
+- monthly updates
+- automated patching
+- maintenance snapshots
+- scheduled maintenance windows
+
+
+### Snapshots & Migrations
+
+Lifecycle Management (LCM) snapshots are used for:
+
+- backups
+- migrations
+- environment cloning
+- artifact movement
+
+Artifacts commonly migrated include:
+
+- rules
+- forms
+- metadata
+- dashboards
+- security
+
+
+## 5. Security Overview
+
+Security within Oracle Planning is layered.
+
+
+### Global Roles
+
+Core roles include:
+
+- Service Administrator
+- Power User
+- User
+- Viewer
+
+
+### Artifact Security
+
+Controls access to:
+
+- forms
+- dashboards
+- folders
+- reports
+- navigation flows
+
+
+### Data Security
+
+Controls access to:
+
+- dimension members
+- intersections
+- planning data
+- read/write permissions
+
+
+### Common Security Mistakes
+
+Common issues include:
+
+- conflicting permissions
+- excessive cell-level security
+- improper group inheritance
+- missing refresh operations
+
+
+## 6. Integration Concepts
+
+Oracle EPM depends heavily on integrations.
+
+
+### External Integrations
+
+Typical sources include:
+
+- ERP systems
+- data warehouses
+- CSV files
+- APIs
+- cloud applications
+
+
+### APIs & Automation
+
+Automation tools include:
+
+- EPM Automate
+- REST APIs
+- scheduled jobs
+- scripted deployments
+
+
+### Reporting Integrations
+
+Data Maps move data between:
+
+- input cubes
+- reporting cubes
+- operational cubes
+- ASO reporting structures
+
+
+## 7. Enterprise Implementation Lifecycle
+
+A real Oracle Planning implementation typically follows structured phases.
+
+
+### Discovery & Requirements
+
+Activities include:
+
+- business analysis
+- dimension planning
+- requirements gathering
+- source system analysis
+- planning workflows
+
+
+### Architecture & Dimensions
+
+Activities include:
+
+- cube design
+- dimension strategy
+- metadata design
+- application configuration
+
+
+### Calculations & Forms
+
+Activities include:
+
+- business rules
+- forms
+- dashboards
+- valid intersections
+- allocations
+
+
+### Testing & Migration
+
+Activities include:
+
+- UAT
+- performance validation
+- migration testing
+- snapshot movement
+
+
+### Deployment & Support
+
+Activities include:
+
+- production cutover
+- approvals
+- operational monitoring
+- support
+- troubleshooting
+
+
+## 8. Common Consulting Mistakes
+
+
+### Architecture Mistakes
+
+- Incorrect dense/sparse design
+- Poor cube design
+- Overcomplicated dimensions
+- Ignoring ASO/BSO strategy
+
+
+### Environment Mistakes
+
+- Poor migration governance
+- No backup strategy
+- Incorrect maintenance planning
+
+
+### Operational Mistakes
+
+- Missing refresh database operations
+- Poor monitoring
+- Invalid metadata sequencing
+
+
+### Governance Mistakes
+
+- Weak security controls
+- Poor approval workflows
+- Uncontrolled allocations
+- Lack of documentation
+
+
+## 9. Troubleshooting Mindset
+
+Enterprise consultants must develop operational troubleshooting discipline.
+
+
+### Metadata Issues
+
+Common checks:
+
+- Jobs Console
+- import logs
+- parent/child relationships
+- metadata sequencing
+
+
+### Access Issues
+
+Common checks:
+
+- security inheritance
+- impersonation testing
+- role assignments
+- data intersections
+
+
+### Navigation Issues
+
+Common checks:
+
+- navigation flows
+- role visibility
+- artifact permissions
+
+
+### Performance Issues
+
+Common checks:
+
+- Application Monitor
+- business rule timing
+- dense/sparse ordering
+- cube refreshes
+
+
+## 10. Automation Opportunities
+
+Oracle EPM supports extensive automation.
+
+
+### Metadata & Data Automation
+
+Automation examples:
+
+- nightly data loads
+- scheduled imports
+- automated refreshes
+- unattended integrations
+
+
+### Deployments & Backups
+
+Automation examples:
+
+- snapshot downloads
+- scripted migrations
+- automated backups
+- CI/CD integration
+
+
+### Calculations & Smart Push
+
+Automation examples:
+
+- post-save calculations
+- Smart Push execution
+- automatic aggregations
+- reporting refreshes
+
+
+## 11. Enterprise Architecture Thinking
+
+
+### Planning Design Principles
+
+Enterprise Planning design should prioritize:
+
+- maintainability
+- scalability
+- operational simplicity
+- performance
+- governance
+- long-term supportability
+
+Architecture decisions should always consider:
+
+- future growth
+- additional dimensions
+- reporting expansion
+- integrations
+- forecast complexity
+- operational ownership
+
+
+### Planning vs Technical Complexity
+
+A common enterprise mistake is overengineering applications too early.
+
+The goal is not to create the most technically advanced application.
+
+The goal is to create:
+
+- stable planning processes
+- maintainable calculations
+- understandable metadata
+- manageable security
+- reliable integrations
+
+
+### Enterprise Governance
+
+Enterprise Planning environments require governance around:
+
+- migrations
+- security
+- metadata ownership
+- calculation changes
+- deployment approvals
+- operational monitoring
+
+Without governance, applications quickly become difficult to maintain.
+
+
+### Performance Mindset
+
+Performance is heavily influenced by:
+
+- cube design
+- dimensionality
+- calculation scope
+- aggregation paths
+- metadata structure
+- form design
+
+Enterprise consultants must constantly evaluate:
+
+- calculation duration
+- refresh impact
+- data movement
+- user experience
+- operational overhead
+
+
+## 12. Hands-On Labs
+
+
+### Phase 1 Foundation Lab
+
+Create:
+
+```text
+KB_FINANCE_PLANNING_DESIGN
+```
+
+Document:
+
+- planning objectives
+- business requirements
+- financial planning scope
+- operational planning scope
+- reporting requirements
+- approval workflows
+- security approach
+- integration sources
+
+Goal:
+
+Understand how Oracle Planning supports enterprise planning operations.
+
+
+### Architecture Visualization Lab
+
+Create a high-level architecture diagram including:
+
+```text
+Users
+↓
+Smart View / Browser
+↓
+Oracle Planning
+↓
+Planning Cubes
+↓
+Business Rules
+↓
+Integrations
+↓
+ERP / External Systems
+```
+
+Tasks:
+
+- identify planning components
+- identify integration points
+- identify reporting flows
+- identify operational dependencies
+
+Goal:
+
+Develop architecture-thinking instead of only application navigation knowledge.
+
+
+### Planning Application Review Lab
+
+Review:
+
+- forms
+- dashboards
+- dimensions
+- cubes
+- business rules
+- navigation flows
+- security structure
+
+Tasks:
+
+- identify planning workflows
+- identify user roles
+- identify data entry processes
+- identify reporting processes
+
+Goal:
+
+Understand how enterprise users interact with Oracle Planning.
+
+
+### Troubleshooting Mindset Lab
+
+Simulate operational support scenarios.
+
+Examples:
+
+- users cannot access forms
+- data does not appear in reports
+- metadata imports fail
+- calculations run slowly
+- Smart View connections fail
+
+Tasks:
+
+- analyze Jobs Console
+- review security
+- validate metadata
+- review calculation execution
+- identify possible root causes
+
+Goal:
+
+Build enterprise support and troubleshooting thinking early in the learning process.
+
+
+### Governance & Operations Lab
+
+Create operational documentation for:
+
+- environment strategy
+- migration process
+- security governance
+- metadata governance
+- support ownership
+- operational monitoring
+
+Goal:
+
+Understand that enterprise EPM success depends heavily on governance and operational discipline.
