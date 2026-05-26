@@ -31,7 +31,7 @@ export default async function SiteHeader() {
 
 	return (
 		<header className="border-b border-gray-200 bg-white">
-			<div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+			<div className="mx-auto flex max-w-[90rem] flex-col gap-4 px-4 py-5 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
 				<div className="flex flex-col">
 					<Link href="/" className="text-2xl font-bold leading-none text-black">
 						TU24x7
@@ -39,7 +39,7 @@ export default async function SiteHeader() {
 					<span className="mt-1 text-sm text-gray-500">Technical Knowledge Base</span>
 				</div>
 
-				<nav className="flex gap-6 text-sm text-gray-600">
+				<nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600">
 					{links.map((link) => (
 						<Link key={link.href} href={link.href} className="hover:text-black">
 							{link.label}
