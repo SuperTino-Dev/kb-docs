@@ -1,0 +1,609 @@
+# Oracle EBR Deep Performance Investigation Guide
+
+## Overview
+
+This guide is intended for advanced Oracle performance investigations after enabling Edition-Based Redefinition (EBR).
+
+The goal is to identify:
+
+* SQL regressions
+* Optimizer behavior changes
+* Cursor invalidations
+* Library Cache contention
+* VPD side effects
+* Editioning View overhead
+* ERP Cloud EBR-related issues
+* GoldenGate replication impact
+
+---
+
+# Investigation Workflow
+
+Recommended order:
+
+1. ASH Analysis
+2. AWR Comparison
+3. SQL Monitor Analysis
+4. Cursor Invalidations
+5. Child Cursor Investigation
+6. Library Cache Analysis
+7. Editioning View Analysis
+8. VPD Analysis
+9. ORA_SEED_SET Analysis
+10. ERP Cloud Validation
+11. GoldenGate Validation
+
+---
+
+# Section 1 - ASH Analysis
+
+## Objective
+
+Determine where sessions spend time after EBR activation.
+
+---
+
+### Top Wait Events
+
+```sql
+SELECT
+    event,
+    COUNT(*) samples
+FROM v$active_session_history
+GROUP BY event
+ORDER BY samples DESC;
+```
+
+---
+
+### Top SQL IDs
+
+```sql
+SELECT
+    sql_id,
+    COUNT(*) samples
+FROM v$active_session_history
+GROUP BY sql_id
+ORDER BY samples DESC;
+```
+
+---
+
+### Waits By Module
+
+```sql
+SELECT
+    module,
+    event,
+    COUNT(*)
+FROM v$active_session_history
+GROUP BY module,event
+ORDER BY COUNT(*) DESC;
+```
+
+---
+
+### What To Look For
+
+Potential EBR indicators:
+
+* library cache lock
+* library cache pin
+* cursor: pin S wait on X
+* row cache lock
+* hard parse waits
+* latch contention
+
+---
+
+# Section 2 - AWR Comparison
+
+## Objective
+
+Compare database performance before and after EBR activation.
+
+---
+
+### Recommended Reports
+
+Generate:
+
+```sql
+@$ORACLE_HOME/rdbms/admin/awrrpt.sql
+```
+
+and
+
+```sql
+@$ORACLE_HOME/rdbms/admin/awrddrpt.sql
+```
+
+---
+
+### Compare
+
+* DB Time
+* CPU Time
+* Logical Reads
+* Physical Reads
+* Parse Time
+* Execute Time
+* Top SQL
+
+---
+
+### Focus Areas
+
+Look for:
+
+* SQL elapsed time increase
+* CPU increase
+* parse activity increase
+* execution plan changes
+
+---
+
+# Section 3 - SQL Monitor Analysis
+
+## Objective
+
+Identify plan regressions in long-running SQL.
+
+---
+
+### Active SQL Monitor
+
+```sql
+SELECT
+    sql_id,
+    status,
+    elapsed_time,
+    cpu_time,
+    buffer_gets
+FROM v$sql_monitor;
+```
+
+---
+
+### Detailed Report
+
+```sql
+SELECT DBMS_SQLTUNE.report_sql_monitor(
+    sql_id => '<SQL_ID>',
+    type => 'TEXT',
+    report_level => 'ALL'
+)
+FROM dual;
+```
+
+---
+
+### Validation
+
+Review:
+
+* actual rows
+* estimated rows
+* index usage
+* join methods
+* full table scans
+
+---
+
+# Section 4 - Cursor Invalidations
+
+## Objective
+
+Determine whether EBR deployment invalidated SQL cursors.
+
+---
+
+### Invalidations
+
+```sql
+SELECT
+    sql_id,
+    invalidations,
+    executions
+FROM v$sql
+WHERE invalidations > 0
+ORDER BY invalidations DESC;
+```
+
+---
+
+### High Parse Activity
+
+```sql
+SELECT
+    name,
+    value
+FROM v$sysstat
+WHERE name IN (
+    'parse count (hard)',
+    'parse count (total)'
+);
+```
+
+---
+
+### Validation
+
+Investigate:
+
+* excessive hard parsing
+* invalid object recompilation
+* shared pool pressure
+
+---
+
+# Section 5 - Child Cursor Explosion
+
+## Objective
+
+Identify SQL statements generating excessive child cursors.
+
+---
+
+### Child Cursor Count
+
+```sql
+SELECT
+    sql_id,
+    COUNT(*) child_count
+FROM v$sql
+GROUP BY sql_id
+HAVING COUNT(*) > 20
+ORDER BY child_count DESC;
+```
+
+---
+
+### Child Cursor Reasons
+
+```sql
+SELECT
+    sql_id,
+    child_number,
+    reason
+FROM v$sql_shared_cursor
+WHERE sql_id = '<SQL_ID>';
+```
+
+---
+
+### Common Findings
+
+* optimizer mismatch
+* bind mismatch
+* statistics mismatch
+* edition mismatch
+
+---
+
+# Section 6 - Library Cache Analysis
+
+## Objective
+
+Identify contention caused by EBR object changes.
+
+---
+
+### Library Cache Statistics
+
+```sql
+SELECT
+    namespace,
+    gets,
+    gethits,
+    pins,
+    pinhits,
+    reloads
+FROM v$librarycache;
+```
+
+---
+
+### Library Cache Waits
+
+```sql
+SELECT
+    event,
+    total_waits,
+    time_waited
+FROM v$system_event
+WHERE event LIKE 'library cache%';
+```
+
+---
+
+### Validation
+
+Look for:
+
+* library cache lock
+* library cache pin
+* excessive reloads
+
+---
+
+# Section 7 - Editioning View Execution Analysis
+
+## Objective
+
+Validate execution plans through Editioning Views.
+
+---
+
+### Editioning Views
+
+```sql
+SELECT
+    owner,
+    view_name
+FROM dba_editioning_views;
+```
+
+---
+
+### View Definition
+
+```sql
+SELECT
+    text_vc
+FROM dba_views
+WHERE view_name='<VIEW_NAME>';
+```
+
+---
+
+### Compare Plans
+
+Compare:
+
+```sql
+SELECT * FROM TABLE(
+DBMS_XPLAN.DISPLAY_CURSOR(
+'<SQL_ID>',
+NULL,
+'ALLSTATS LAST'
+));
+```
+
+against the same query executed directly against the base table.
+
+---
+
+### Validation
+
+Review:
+
+* cardinality estimates
+* access paths
+* index usage
+* predicate pushdown
+
+---
+
+# Section 8 - VPD Policy Tracing
+
+## Objective
+
+Determine whether security policies introduce hidden predicates.
+
+---
+
+### VPD Policies
+
+```sql
+SELECT
+    object_owner,
+    object_name,
+    policy_name,
+    policy_function
+FROM dba_policies;
+```
+
+---
+
+### Policy Groups
+
+```sql
+SELECT *
+FROM dba_policy_groups;
+```
+
+---
+
+### Validation
+
+Look for:
+
+* added predicates
+* row filtering
+* unexpected joins
+
+---
+
+# Section 9 - ORA_SEED_SET1 / ORA_SEED_SET2 Investigation
+
+## Objective
+
+Validate ERP Cloud seed-set filtering impact.
+
+---
+
+### Tables Using Seed Sets
+
+```sql
+SELECT
+    owner,
+    table_name,
+    column_name
+FROM dba_tab_columns
+WHERE column_name IN (
+'ORA_SEED_SET1',
+'ORA_SEED_SET2'
+);
+```
+
+---
+
+### Distribution Analysis
+
+```sql
+SELECT
+    ORA_SEED_SET1,
+    COUNT(*)
+FROM <TABLE_NAME>
+GROUP BY ORA_SEED_SET1;
+```
+
+---
+
+### Histogram Validation
+
+```sql
+SELECT
+    owner,
+    table_name,
+    column_name,
+    histogram
+FROM dba_tab_col_statistics
+WHERE column_name='ORA_SEED_SET1';
+```
+
+---
+
+### Validation
+
+Review:
+
+* skewed distributions
+* histogram accuracy
+* filter selectivity
+
+---
+
+# Section 10 - ERP Cloud Specific Validation
+
+## Objective
+
+Validate common ERP Cloud EBR-related performance issues.
+
+---
+
+### Invalid Editioned Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    edition_name
+FROM dba_objects_ae
+WHERE status='INVALID';
+```
+
+---
+
+### Editioned Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    edition_name
+FROM dba_objects_ae;
+```
+
+---
+
+### Focus Areas
+
+Investigate:
+
+* Fusion Runtime schemas
+* Editioning Views
+* Seed Data Framework
+* VPD Policies
+* Invisible Indexes
+
+---
+
+# Section 11 - GoldenGate + EBR Validation
+
+## Objective
+
+Determine whether EBR changes impact replication.
+
+---
+
+### Extract Lag
+
+```sql
+INFO EXTRACT *, DETAIL
+```
+
+---
+
+### Replicat Lag
+
+```sql
+INFO REPLICAT *, DETAIL
+```
+
+---
+
+### DDL History
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    last_ddl_time
+FROM dba_objects
+ORDER BY last_ddl_time DESC;
+```
+
+---
+
+### Validation
+
+Review:
+
+* DDL replication
+* editioned object changes
+* lag increases
+* trail growth
+* checkpoint delays
+
+---
+
+# Final Root Cause Decision Tree
+```
+If waits are:
+
+| Wait Type               | Likely Cause               |
+| ----------------------- | -------------------------- |
+| library cache lock      | EBR object invalidation    |
+| cursor pin S wait on X  | child cursor explosion     |
+| db file sequential read | index access regression    |
+| db file scattered read  | full table scan regression |
+| row cache lock          | metadata contention        |
+| enq: TX                 | application locking        |
+| CPU                     | optimizer plan regression  |
+
+```
+The most common EBR-related root causes are:
+
+1. Plan regressions
+2. Statistics changes
+3. Child cursor proliferation
+4. Library cache contention
+5. VPD predicate expansion
+6. ORA_SEED_SET selectivity issues
+7. Crossedition trigger overhead
+8. Editioning View access path changes

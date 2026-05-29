@@ -1,0 +1,580 @@
+# Oracle ERP Cloud EBR Root Cause Analysis Playbook
+
+## Overview
+
+This playbook is designed for Oracle ERP Cloud environments where performance degradation is observed after:
+
+* EBR activation
+* Quarterly Updates
+* Functional Patch Deployment
+* Data Model Changes
+* Seed Data Updates
+* GoldenGate Integration Changes
+
+This document focuses on Oracle Fusion-specific components frequently involved in performance regressions.
+
+---
+
+# Investigation Strategy
+
+Always investigate in this order:
+
+1. AWR / ASH Correlation
+2. FUSION_RUNTIME Activity
+3. ORA_SEED_SET Analysis
+4. Editioning View Validation
+5. Invisible Index Validation
+6. VPD Predicate Expansion
+7. OTBI Workloads
+8. ESS Job Workloads
+9. GoldenGate Impact
+10. Root Cause Correlation
+
+---
+
+# Section 1 - AWR / ASH Correlation
+
+## Objective
+
+Identify exactly when performance degradation started.
+
+---
+
+## Questions
+
+* Did degradation begin immediately after EBR activation?
+* Did degradation begin after patching?
+* Is degradation isolated to specific modules?
+* Is degradation constant or intermittent?
+
+---
+
+### Top SQL from AWR
+
+```sql
+SELECT
+    sql_id,
+    elapsed_time_delta,
+    cpu_time_delta,
+    buffer_gets_delta,
+    executions_delta
+FROM dba_hist_sqlstat
+ORDER BY elapsed_time_delta DESC;
+```
+
+---
+
+### ASH Module Analysis
+
+```sql
+SELECT
+    module,
+    COUNT(*) samples
+FROM dba_hist_active_sess_history
+GROUP BY module
+ORDER BY samples DESC;
+```
+
+---
+
+### ASH Wait Analysis
+
+```sql
+SELECT
+    event,
+    COUNT(*) samples
+FROM dba_hist_active_sess_history
+GROUP BY event
+ORDER BY samples DESC;
+```
+
+---
+
+## Validation
+
+Determine:
+
+* first appearance of slowdown
+* affected modules
+* affected SQL IDs
+
+---
+
+# Section 2 - FUSION_RUNTIME Investigation
+
+## Objective
+
+Validate editioned objects and runtime dependencies.
+
+---
+
+### Editioned Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    edition_name
+FROM dba_objects_ae
+WHERE owner='FUSION_RUNTIME';
+```
+
+---
+
+### Invalid Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type
+FROM dba_objects_ae
+WHERE owner='FUSION_RUNTIME'
+AND status='INVALID';
+```
+
+---
+
+### Recently Modified Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    last_ddl_time
+FROM dba_objects
+WHERE owner='FUSION_RUNTIME'
+ORDER BY last_ddl_time DESC;
+```
+
+---
+
+## Common Findings
+
+* invalid package bodies
+* edition synchronization issues
+* patch deployment artifacts
+
+---
+
+# Section 3 - ORA_SEED_SET1 / ORA_SEED_SET2 Analysis
+
+## Objective
+
+Determine whether Seed Set filtering is affecting optimizer behavior.
+
+---
+
+### Discover Tables
+
+```sql
+SELECT
+    owner,
+    table_name
+FROM dba_tab_columns
+WHERE column_name='ORA_SEED_SET1'
+ORDER BY owner,table_name;
+```
+
+---
+
+### Distribution Analysis
+
+```sql
+SELECT
+    ORA_SEED_SET1,
+    COUNT(*)
+FROM <TABLE_NAME>
+GROUP BY ORA_SEED_SET1;
+```
+
+---
+
+### Percentage Analysis
+
+```sql
+SELECT
+    ORA_SEED_SET1,
+    ROUND(
+      COUNT(*)*100/
+      SUM(COUNT(*)) OVER (),
+      2
+    ) pct
+FROM <TABLE_NAME>
+GROUP BY ORA_SEED_SET1;
+```
+
+---
+
+### Histogram Analysis
+
+```sql
+SELECT
+    owner,
+    table_name,
+    column_name,
+    histogram,
+    num_distinct
+FROM dba_tab_col_statistics
+WHERE column_name='ORA_SEED_SET1';
+```
+
+---
+
+## Red Flags
+
+* highly skewed values
+* stale statistics
+* missing histograms
+* unexpected cardinality
+
+---
+
+# Section 4 - Invisible Index Validation
+
+## Objective
+
+Determine whether optimizer lost access to critical indexes.
+
+---
+
+### Invisible Indexes
+
+```sql
+SELECT
+    owner,
+    index_name,
+    table_name,
+    visibility
+FROM dba_indexes
+WHERE visibility='INVISIBLE';
+```
+
+---
+
+### Recently Modified Indexes
+
+```sql
+SELECT
+    owner,
+    index_name,
+    table_name,
+    last_analyzed
+FROM dba_indexes
+ORDER BY last_analyzed DESC;
+```
+
+---
+
+### SQL Using Full Table Scans
+
+```sql
+SELECT *
+FROM TABLE(
+DBMS_XPLAN.DISPLAY_CURSOR(
+'<SQL_ID>',
+NULL,
+'ALLSTATS LAST'
+));
+```
+
+---
+
+## Common Findings
+
+Oracle quarterly patches frequently create:
+
+* invisible indexes
+* replacement indexes
+* temporary migration indexes
+
+which may alter plans unexpectedly.
+
+---
+
+# Section 5 - Editioning View Analysis
+
+## Objective
+
+Validate EBR abstraction layer.
+
+---
+
+### Editioning Views
+
+```sql
+SELECT
+    owner,
+    view_name
+FROM dba_editioning_views;
+```
+
+---
+
+### View Definitions
+
+```sql
+SELECT
+    text_vc
+FROM dba_views
+WHERE view_name='<VIEW_NAME>';
+```
+
+---
+
+### Compare Access Paths
+
+Compare:
+
+Query against:
+
+* Editioning View
+
+versus
+
+* Base Table
+
+---
+
+## Red Flags
+
+* cardinality mismatch
+* index access changes
+* predicate pushdown failures
+
+---
+
+# Section 6 - VPD Predicate Expansion
+
+## Objective
+
+Determine whether security policies add expensive predicates.
+
+---
+
+### Active Policies
+
+```sql
+SELECT
+    object_owner,
+    object_name,
+    policy_name,
+    policy_function
+FROM dba_policies;
+```
+
+---
+
+### Policy Groups
+
+```sql
+SELECT *
+FROM dba_policy_groups;
+```
+
+---
+
+### Session Context
+
+```sql
+SELECT
+    namespace,
+    attribute,
+    value
+FROM session_context;
+```
+
+---
+
+## Common Findings
+
+Performance issues often appear because:
+
+* additional predicates are injected
+* joins become more expensive
+* cardinality estimates change
+
+---
+
+# Section 7 - OTBI Investigation
+
+## Objective
+
+Determine whether reporting workloads changed.
+
+---
+
+### Top OTBI SQL
+
+```sql
+SELECT
+    sql_id,
+    module,
+    elapsed_time,
+    executions
+FROM v$sql
+WHERE module LIKE '%OBIEE%';
+```
+
+---
+
+### Full Scans
+
+```sql
+SELECT
+    sql_id,
+    disk_reads,
+    buffer_gets
+FROM v$sql
+WHERE module LIKE '%OBIEE%';
+```
+
+---
+
+## Common Findings
+
+* larger scans
+* new joins
+* seed-set filtering effects
+
+---
+
+# Section 8 - ESS Job Investigation
+
+## Objective
+
+Validate Enterprise Scheduler Service workloads.
+
+---
+
+### Long Running Jobs
+
+```sql
+SELECT
+    requestid,
+    processstart,
+    processend,
+    elapsedtime
+FROM fusion.fnd_svc_requests
+ORDER BY elapsedtime DESC;
+```
+
+---
+
+### Job Trends
+
+Compare:
+
+* before EBR
+* after EBR
+
+---
+
+## Common Findings
+
+* package recompilation
+* SQL plan regression
+* edition mismatch
+
+---
+
+# Section 9 - GoldenGate Investigation
+
+## Objective
+
+Determine whether EBR changes affect replication.
+
+---
+
+### Checkpoint Lag
+
+```text
+INFO ALL
+LAG EXTRACT *
+LAG REPLICAT *
+```
+
+---
+
+### DDL Activity
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    last_ddl_time
+FROM dba_objects
+ORDER BY last_ddl_time DESC;
+```
+
+---
+
+### GoldenGate Tables
+
+Review:
+
+* heartbeat tables
+* checkpoint tables
+* replication metadata
+
+---
+
+## Common Findings
+
+* DDL bursts
+* metadata changes
+* increased lag
+* trail growth
+
+---
+
+# Section 10 - Correlation Matrix
+
+| Symptom              | Likely Root Cause       |
+| -------------------- | ----------------------- |
+| High CPU             | Plan regression         |
+| Full Table Scan      | Invisible index issue   |
+| Cardinality mismatch | ORA_SEED_SET statistics |
+| Increased parsing    | EBR invalidations       |
+| Library Cache waits  | Object recompilation    |
+| OBIEE slowdown       | VPD or Seed Set         |
+| ESS slowdown         | Package recompilation   |
+| GoldenGate lag       | DDL activity            |
+| Row Cache Lock       | Metadata contention     |
+| Cursor Pin Waits     | Child cursor explosion  |
+
+---
+
+# Final Oracle ERP Cloud EBR Checklist
+
+Validate:
+
+* AWR before and after
+* ASH before and after
+* SQL Plan changes
+* FUSION_RUNTIME objects
+* ORA_SEED_SET statistics
+* Invisible indexes
+* Editioning Views
+* VPD policies
+* OTBI reports
+* ESS jobs
+* GoldenGate lag
+* Child cursors
+* Library Cache activity
+
+Only after all checks are completed should EBR be identified as the root cause.
+
+In most Oracle ERP Cloud environments the actual root cause is usually one of:
+
+1. SQL Plan Regression
+2. ORA_SEED_SET Cardinality Misestimation
+3. Invisible Index Usage Change
+4. VPD Predicate Expansion
+5. Cursor Invalidation Storm
+6. Child Cursor Explosion
+7. Metadata Contention
+8. GoldenGate DDL Side Effects

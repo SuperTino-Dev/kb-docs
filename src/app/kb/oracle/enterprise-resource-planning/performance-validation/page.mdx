@@ -1,0 +1,555 @@
+# Oracle EBR Performance Validation Framework
+
+## Overview
+
+This document provides a structured methodology to validate performance after enabling Oracle Edition-Based Redefinition (EBR).
+
+The objective is to identify:
+
+- SQL regressions
+- Optimizer plan changes
+- Statistics issues
+- EBR object overhead
+- Editioning View impact
+- Crossedition Trigger impact
+- VPD policy side effects
+- Parsing and cursor invalidations
+- Locking and contention
+- Infrastructure bottlenecks
+
+The framework is designed for:
+
+- Oracle ERP Cloud
+- Fusion Applications
+- OCI Databases
+- Oracle Database 19c
+- Oracle Database 23ai
+- GoldenGate environments using EBR
+
+---
+
+# Phase 1 – Establish Performance Baseline
+
+## Objective
+
+Before troubleshooting EBR itself, determine whether the slowdown is caused by:
+
+- SQL execution
+- CPU
+- I/O
+- Locks
+- Parsing
+- Network
+- Storage
+- Application logic
+
+---
+
+## Collect Current Database Health
+
+### Database Time
+
+```sql
+SELECT
+    metric_name,
+    value
+FROM v$sysmetric
+WHERE metric_name IN (
+    'Database CPU Time Ratio',
+    'Database Wait Time Ratio',
+    'Host CPU Utilization (%)'
+);
+```
+
+---
+
+### Top Wait Events
+
+```sql
+SELECT
+    event,
+    total_waits,
+    time_waited
+FROM v$system_event
+ORDER BY time_waited DESC;
+```
+
+---
+
+### Active Sessions
+
+```sql
+SELECT
+    sid,
+    serial#,
+    username,
+    module,
+    event,
+    state
+FROM v$session
+WHERE status='ACTIVE';
+```
+
+---
+
+## Success Criteria
+
+Normal conditions:
+
+- CPU below 80%
+- No excessive locking
+- No unexpected wait events
+- Stable response times
+
+---
+
+# Phase 2 – Verify Edition Configuration
+
+## Objective
+
+Confirm that sessions are executing under the expected edition.
+
+---
+
+### Current Database Editions
+
+```sql
+SELECT
+    edition_name,
+    parent_edition_name,
+    usable
+FROM dba_editions
+ORDER BY edition_name;
+```
+
+---
+
+### Current Session Edition
+
+```sql
+SELECT
+    sys_context(
+        'USERENV',
+        'CURRENT_EDITION_NAME'
+    ) edition_name
+FROM dual;
+```
+
+---
+
+### Sessions By Edition
+
+```sql
+SELECT
+    username,
+    module,
+    sys_context(
+        'USERENV',
+        'CURRENT_EDITION_NAME'
+    ) edition_name
+FROM v$session
+WHERE username IS NOT NULL;
+```
+
+---
+
+## Validation Goals
+
+Verify:
+
+- Correct edition is active
+- No unexpected editions in use
+- Application servers are using the same edition
+
+---
+
+# Phase 3 – Identify SQL Regressions
+
+## Objective
+
+Determine whether EBR activation changed execution plans.
+
+---
+
+### Top SQL By Elapsed Time
+
+```sql
+SELECT *
+FROM (
+    SELECT
+        sql_id,
+        plan_hash_value,
+        executions,
+        elapsed_time/1000000 elapsed_seconds,
+        cpu_time/1000000 cpu_seconds,
+        buffer_gets,
+        disk_reads
+    FROM v$sql
+    ORDER BY elapsed_time DESC
+)
+WHERE rownum <= 50;
+```
+
+---
+
+### Top SQL By Buffer Gets
+
+```sql
+SELECT *
+FROM (
+    SELECT
+        sql_id,
+        executions,
+        buffer_gets,
+        elapsed_time/1000000 elapsed_seconds
+    FROM v$sql
+    ORDER BY buffer_gets DESC
+)
+WHERE rownum <= 50;
+```
+
+---
+
+### Detect Plan Changes
+
+```sql
+SELECT
+    sql_id,
+    COUNT(DISTINCT plan_hash_value)
+FROM v$sql
+GROUP BY sql_id
+HAVING COUNT(DISTINCT plan_hash_value) > 1;
+```
+
+---
+
+## Validation Goals
+
+Identify:
+
+- New execution plans
+- Increased logical I/O
+- Increased physical I/O
+- Increased CPU consumption
+
+---
+
+# Phase 4 – Editioning View Analysis
+
+## Objective
+
+Determine whether Editioning Views are introducing additional overhead.
+
+---
+
+### List Editioning Views
+
+```sql
+SELECT
+    owner,
+    view_name
+FROM dba_editioning_views
+ORDER BY owner, view_name;
+```
+
+---
+
+### Compare View Definition
+
+```sql
+SELECT
+    owner,
+    view_name,
+    text_vc
+FROM dba_views
+WHERE view_name='<VIEW_NAME>';
+```
+
+---
+
+## Validation Goals
+
+Verify:
+
+- View is simple projection only
+- No unexpected joins
+- No hidden predicates
+
+---
+
+# Phase 5 – Object Invalidation Analysis
+
+## Objective
+
+Identify objects invalidated after EBR deployment.
+
+---
+
+### Invalid Objects
+
+```sql
+SELECT
+    owner,
+    object_type,
+    object_name,
+    status
+FROM dba_objects
+WHERE status='INVALID'
+ORDER BY owner;
+```
+
+---
+
+### Recently Recompiled Objects
+
+```sql
+SELECT
+    owner,
+    object_name,
+    object_type,
+    last_ddl_time
+FROM dba_objects
+ORDER BY last_ddl_time DESC;
+```
+
+---
+
+## Validation Goals
+
+Verify:
+
+- No unexpected invalidations
+- No continuous recompilation
+
+---
+
+# Phase 6 – Statistics Validation
+
+## Objective
+
+Ensure optimizer statistics remain accurate after EBR deployment.
+
+---
+
+### Stale Statistics
+
+```sql
+SELECT
+    owner,
+    table_name,
+    stale_stats
+FROM dba_tab_statistics
+WHERE stale_stats='YES';
+```
+
+---
+
+### Missing Statistics
+
+```sql
+SELECT
+    owner,
+    table_name,
+    last_analyzed
+FROM dba_tables
+WHERE last_analyzed IS NULL;
+```
+
+---
+
+### Histogram Review
+
+```sql
+SELECT
+    owner,
+    table_name,
+    column_name,
+    histogram
+FROM dba_tab_col_statistics
+WHERE histogram <> 'NONE';
+```
+
+---
+
+## Validation Goals
+
+Verify:
+
+- Statistics are current
+- Histograms remain appropriate
+- Cardinality estimates are accurate
+
+---
+
+# Phase 7 – Trigger Impact Analysis
+
+## Objective
+
+Determine whether crossedition triggers are introducing DML overhead.
+
+---
+
+### Crossedition Triggers
+
+```sql
+SELECT
+    owner,
+    trigger_name,
+    crossedition
+FROM dba_triggers
+WHERE crossedition='YES';
+```
+
+---
+
+### Trigger Status
+
+```sql
+SELECT
+    owner,
+    trigger_name,
+    status
+FROM dba_triggers;
+```
+
+---
+
+## Validation Goals
+
+Measure:
+
+- Insert latency
+- Update latency
+- Delete latency
+
+Before and after trigger execution.
+
+---
+
+# Phase 8 – Locking and Contention
+
+## Objective
+
+Identify blocking sessions.
+
+---
+
+### Blocking Sessions
+
+```sql
+SELECT
+    blocking_session,
+    sid,
+    serial#,
+    event
+FROM v$session
+WHERE blocking_session IS NOT NULL;
+```
+
+---
+
+### Locked Objects
+
+```sql
+SELECT
+    lo.session_id,
+    do.owner,
+    do.object_name
+FROM v$locked_object lo
+JOIN dba_objects do
+ON lo.object_id = do.object_id;
+```
+
+---
+
+## Validation Goals
+
+Verify:
+
+- No blocking chains
+- No excessive row locking
+
+---
+
+# Phase 9 – SQL Plan Validation
+
+## Objective
+
+Compare execution plans before and after EBR.
+
+---
+
+### Display Cursor Plan
+
+```sql
+SELECT *
+FROM TABLE(
+    dbms_xplan.display_cursor(
+        '<SQL_ID>',
+        NULL,
+        'ALLSTATS LAST'
+    )
+);
+```
+
+---
+
+## Validation Goals
+
+Compare:
+
+- Estimated rows
+- Actual rows
+- Join methods
+- Index usage
+- Partition pruning
+
+---
+
+# Phase 10 – End-to-End Workload Simulation
+
+## Objective
+
+Simulate real business workloads.
+
+---
+
+## Recommended Tests
+
+### OLTP
+
+- Inserts
+- Updates
+- Deletes
+- Commits
+
+### Reporting
+
+- Aggregations
+- Large scans
+- BI queries
+
+### Batch
+
+- Concurrent jobs
+- Parallel execution
+- ETL processes
+
+### GoldenGate
+
+- Replication lag
+- Extract latency
+- Replicat latency
+
+---
+
+## Success Criteria
+
+Performance degradation should remain:
+
+- < 10% CPU increase
+- < 10% elapsed time increase
+- No plan regressions
+- No additional contention
+- No excessive parsing
+- No replication impact
