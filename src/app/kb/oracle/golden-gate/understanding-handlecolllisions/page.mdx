@@ -1,0 +1,374 @@
+# Understanding HANDLECOLLISIONS in Oracle GoldenGate
+
+## Overview
+
+`HANDLECOLLISIONS` is a Replicat parameter that allows Oracle GoldenGate to automatically resolve certain data conflicts that may occur between source and target databases.
+
+ 
+<YouTube id="OR0kBFVPz8E" title="Understanding HANDLECOLLISIONS in Oracle GoldenGate" />
+
+The parameter is primarily intended for temporary use during:
+
+* Initial Load migrations
+* Data synchronization projects
+* Replicat instantiation
+* Catch-up scenarios after outages
+* Controlled recovery operations
+
+Oracle does not recommend leaving `HANDLECOLLISIONS` enabled permanently.
+
+---
+
+# What Problem Does HANDLECOLLISIONS Solve?
+
+During replication startup, it is possible for source and target databases to be temporarily out of sync.
+
+Examples include:
+
+* Rows already exist in the target.
+* Rows are missing in the target.
+* Transactions arrive while an initial load is still running.
+* Replicat starts processing before synchronization is fully completed.
+
+Without collision handling, these situations often generate errors such as:
+
+```text
+ORA-00001: Unique Constraint Violated
+
+ORA-01403: No Data Found
+
+ORA-02291: Integrity Constraint Violated
+```
+
+---
+
+# How HANDLECOLLISIONS Works
+
+When enabled:
+
+```text
+REPLICAT REP1
+
+HANDLECOLLISIONS
+```
+
+GoldenGate attempts to automatically resolve specific conflicts rather than stopping Replicat.
+
+---
+
+# Scenario 1 - Duplicate INSERT
+
+## Source
+
+```sql
+INSERT INTO OE.ORDER_ITEMS
+VALUES (...);
+```
+
+## Target
+
+The row already exists.
+
+Normally:
+
+```text
+ORA-00001
+Unique Constraint Violated
+```
+
+With HANDLECOLLISIONS:
+
+```text
+INSERT
+   ↓
+Converted to UPDATE
+```
+
+Replicat attempts to update the existing row.
+
+---
+
+# Scenario 2 - Missing Row During UPDATE
+
+## Source
+
+```sql
+UPDATE OE.ORDER_ITEMS
+SET STATUS='SHIPPED'
+WHERE ORDER_ID=1001;
+```
+
+## Target
+
+The row does not exist.
+
+Normally:
+
+```text
+ORA-01403
+No Data Found
+```
+
+With HANDLECOLLISIONS:
+
+```text
+UPDATE
+   ↓
+Converted to INSERT
+```
+
+Replicat attempts to create the row.
+
+---
+
+# Scenario 3 - Missing Row During DELETE
+
+## Source
+
+```sql
+DELETE FROM OE.ORDER_ITEMS
+WHERE ORDER_ID=1001;
+```
+
+## Target
+
+The row has already been removed.
+
+Normally:
+
+```text
+ORA-01403
+No Data Found
+```
+
+With HANDLECOLLISIONS:
+
+```text
+DELETE
+   ↓
+Ignored
+```
+
+Replicat continues processing.
+
+---
+
+# Benefits
+
+## Faster Initial Synchronization
+
+Allows replication to continue while source and target converge.
+
+## Reduced Manual Intervention
+
+Avoids frequent Replicat abends caused by expected startup collisions.
+
+## Simplified Migration Activities
+
+Useful when large data loads overlap with active transaction replication.
+
+---
+
+# Risks and Side Effects
+
+## Hidden Data Problems
+
+A genuine data issue may be silently masked.
+
+Example:
+
+```text
+Missing source transaction
+```
+
+may appear as:
+
+```text
+Successful UPDATE
+```
+
+because GoldenGate automatically inserted the row.
+
+---
+
+## Difficult Root Cause Analysis
+
+Future investigations become harder because collision handling may have altered the original behavior.
+
+---
+
+## Potential Data Inconsistencies
+
+Automatic conflict resolution does not guarantee data correctness.
+
+Two systems may still diverge while Replicat appears healthy.
+
+---
+
+## False Sense of Stability
+
+Replicat remains running while data quality problems accumulate unnoticed.
+
+---
+
+# Impact on Troubleshooting
+
+When investigating issues involving:
+
+```text
+ORA-01403
+
+ORA-00001
+
+Data divergence
+
+Parallel Replicat
+
+BATCHSQL
+```
+
+it is important to determine whether HANDLECOLLISIONS is enabled.
+
+A process using:
+
+```text
+HANDLECOLLISIONS
+```
+
+may behave very differently from one using:
+
+```text
+NOHANDLECOLLISIONS
+```
+
+even when processing identical transactions.
+
+---
+
+# Interaction with Parallel Replicat
+
+In Parallel Replicat environments:
+
+```text
+BATCHSQL
+
+MAP_PARALLELISM
+
+MIN_APPLY_PARALLELISM
+
+MAX_APPLY_PARALLELISM
+```
+
+HANDLECOLLISIONS can sometimes mask ordering problems.
+
+Example:
+
+```text
+Expected Order
+
+INSERT
+UPDATE
+COMMIT
+```
+
+Potential Apply Order:
+
+```text
+UPDATE
+INSERT
+```
+
+Without HANDLECOLLISIONS:
+
+```text
+ORA-01403
+```
+
+With HANDLECOLLISIONS:
+
+```text
+UPDATE converted to INSERT
+```
+
+The Replicat continues successfully, potentially hiding the underlying sequencing issue.
+
+---
+
+# Best Practices
+
+## Recommended
+
+Enable HANDLECOLLISIONS only during:
+
+* Initial load overlap periods
+* Controlled synchronization projects
+* Planned recovery operations
+
+Example:
+
+```text
+REPLICAT REP1
+
+HANDLECOLLISIONS
+```
+
+After synchronization:
+
+```text
+REPLICAT REP1
+
+NOHANDLECOLLISIONS
+```
+
+---
+
+## Not Recommended
+
+Leaving HANDLECOLLISIONS enabled permanently.
+
+Example:
+
+```text
+REPLICAT REP1
+
+HANDLECOLLISIONS
+```
+
+for weeks or months in production.
+
+This can conceal data integrity issues that should be investigated and corrected.
+
+---
+
+# Verification
+
+To verify whether collision handling is enabled:
+
+```text
+VIEW PARAMS REP1
+```
+
+Look for:
+
+```text
+HANDLECOLLISIONS
+```
+
+or:
+
+```text
+NOHANDLECOLLISIONS
+```
+
+---
+
+# Key Takeaways
+
+* HANDLECOLLISIONS is designed for temporary use.
+* It helps Replicat survive expected synchronization conflicts.
+* It can automatically transform INSERT, UPDATE, and DELETE behavior.
+* It should not be considered a permanent solution.
+* It may hide underlying replication, sequencing, or data integrity problems.
+* Root cause analysis should always determine whether HANDLECOLLISIONS was active when an issue occurred.
+
+When troubleshooting GoldenGate replication problems, understanding whether HANDLECOLLISIONS was enabled is often one of the first and most important diagnostic steps.

@@ -1,0 +1,280 @@
+# Diagnosing Transaction Apply Sequence Using Logdump in Parallel Replicat Environments
+
+## Purpose
+
+This guide describes a methodology for investigating transaction sequencing issues in Oracle GoldenGate environments that use Parallel Replicat, BATCHSQL, and transaction splitting features.
+
+<YouTube id="r3tT_rxwBtU " title="Diagnosing Transaction Apply Sequence Using Logdump in Parallel Replicat Environments" />
+
+
+## Example Environment
+
+### Source Table
+
+```text
+OE.ORDER_ITEMS
+```
+
+### Target Table
+
+```text
+OE.ORDER_ITEMS
+```
+
+### Replicat Configuration
+
+```text
+REPLICAT REP_PARALLEL
+
+BATCHSQL
+
+MAP_PARALLELISM 8
+MIN_APPLY_PARALLELISM 8
+MAX_APPLY_PARALLELISM 16
+
+SPLIT_TRANS_RECS 10000
+```
+
+### Example Trail File
+
+```text
+aa000001234
+```
+
+## Investigation Strategy
+
+1. Verify the exact operation sequence stored in the trail.
+2. Confirm source transaction ordering.
+3. Determine whether parallel apply behavior changed execution order.
+
+## Step 1 - Identify the Failure Position
+
+Locate:
+
+```text
+Trail Sequence Number
+Relative Byte Address (RBA)
+Table Name
+```
+
+Example:
+
+```text
+Sequence Number : 1234
+RBA             : 987654321
+Table           : OE.ORDER_ITEMS
+```
+
+## Step 2 - Launch Logdump
+
+```bash
+logdump
+help
+
+open /ogg/data/aa000001234
+
+ghdr on
+detail on
+detail data
+
+ggstoken on
+usertoken on
+```
+
+## Step 3 - Position Near the Event
+
+```text
+pos 987650000
+```
+
+or
+
+```text
+pos 987654321
+```
+
+Navigate:
+
+```text
+n
+```
+
+## Step 4 - Filter on the Table
+
+```text
+filter include filename OE.ORDER_ITEMS
+filter match all
+```
+
+## Step 5 - Locate the INSERT
+
+Example:
+
+```text
+Operation Type: Insert
+ORDER_ID = 1001
+LINE_ID  = 1
+```
+
+Capture:
+
+- Sequence Number
+- RBA
+- Transaction ID
+- Commit Timestamp
+
+## Step 6 - Locate the UPDATE
+
+Example:
+
+```text
+Operation Type: Update
+
+ORDER_ID = 1001
+LINE_ID  = 1
+```
+
+Expected trail sequence:
+
+```text
+INSERT
+UPDATE
+COMMIT
+```
+
+## Step 7 - Validate Transaction Boundaries
+
+Review:
+
+```text
+Transaction ID (XID)
+Commit Timestamp
+Audit Position
+```
+
+Example:
+
+```text
+XID = 0x0001.002.00012345
+```
+
+Determine whether INSERT and UPDATE belong to the same transaction.
+
+## Step 8 - Analyze Commit Ordering
+
+If the trail shows:
+
+```text
+INSERT
+UPDATE
+COMMIT
+```
+
+then source capture is functioning correctly and attention should shift to target-side apply processing.
+
+## Step 9 - Evaluate Parallel Replicat Configuration
+
+Review:
+
+```text
+BATCHSQL
+
+MAP_PARALLELISM
+MIN_APPLY_PARALLELISM
+MAX_APPLY_PARALLELISM
+
+SPLIT_TRANS_RECS
+```
+
+Potential impacts:
+
+- Multiple applier threads
+- Parallel transaction execution
+- Batch processing
+- Transaction decomposition
+
+## Step 10 - Correlate with Replicat Statistics
+
+```text
+STATS REPLICAT REP_PARALLEL
+STATS REPLICAT REP_PARALLEL LATEST
+```
+
+Review:
+
+```text
+Batch Operations
+Batch Errors
+Normal Mode Operations
+Immediate Flush Operations
+```
+
+## Step 11 - Determine Whether Apply Reordering Occurred
+
+If the trail shows:
+
+```text
+INSERT
+UPDATE
+COMMIT
+```
+
+but target behavior suggests:
+
+```text
+UPDATE before INSERT
+```
+
+focus on:
+
+```text
+Parallel Apply
+BATCHSQL Processing
+Transaction Splitting
+Dependency Calculations
+```
+
+## Step 12 - Validation Testing
+
+Temporarily simplify processing:
+
+```text
+MAP_PARALLELISM 1
+MIN_APPLY_PARALLELISM 1
+MAX_APPLY_PARALLELISM 1
+```
+
+Optionally disable:
+
+```text
+BATCHSQL
+SPLIT_TRANS_RECS
+```
+
+Retest the workload.
+
+## Evidence Collection Checklist
+
+- Trail Sequence Number
+- RBA Position
+- INSERT Record
+- UPDATE Record
+- Transaction ID (XID)
+- Commit Timestamp
+- Trail Ordering Evidence
+- Replicat Report Messages
+- BATCHSQL Statistics
+- Parallel Replicat Configuration
+- Validation Test Results
+
+## Conclusion
+
+Logdump provides the definitive record of what Oracle GoldenGate captured from the source database.
+
+By comparing:
+
+1. Trail ordering
+2. Transaction metadata
+3. Replicat execution model
+
+it is possible to determine whether an issue originated from source capture, trail generation, data divergence, parallel apply behavior, BATCHSQL execution, or transaction splitting.
