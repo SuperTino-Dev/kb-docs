@@ -1,0 +1,4 @@
+---
+title: Oracle EPM Drill-Through and Financial Traceability
+description: Understanding how Oracle EPM enables end-to-end financial traceability from consolidated balances to source transactions in Oracle ERP Cloud and external systems.
+---
