@@ -1,0 +1,5 @@
+---
+title: GoldenGate Knowledge Base Landing Page
+description: Overview of the Oracle GoldenGate section within the TU24x7 Technical Knowledge Base.
+---
+
